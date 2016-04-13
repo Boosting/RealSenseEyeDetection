@@ -18,5 +18,6 @@ public:
 	~EyeDetector();
 
 	void CascadeDetection(cv::Mat& colorImg);
+	void CascadeDetection(cv::Mat& colorImg, cv::Mat& depth_to_color_img, const uint16_t one_meter);
 };
 

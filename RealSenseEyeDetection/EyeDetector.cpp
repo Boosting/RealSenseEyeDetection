@@ -16,17 +16,15 @@ EyeDetector::EyeDetector()
 	}
 }
 
-
 EyeDetector::~EyeDetector()
 {
 }
-
 
 void EyeDetector::CascadeDetection(cv::Mat& colorImg) {
 	double t = (double)cvGetTickCount();
 
 	int i = 0;
-	std::vector<cv::Rect> faces, faces2;
+	std::vector<cv::Rect> faces;
 	const static cv::Scalar colors[] = { CV_RGB(0,0,255),
 		CV_RGB(0,128,255),
 		CV_RGB(0,255,255),
@@ -96,4 +94,31 @@ void EyeDetector::CascadeDetection(cv::Mat& colorImg) {
 	printf("detection time = %g ms\n", t / ((double)cvGetTickFrequency()*1000.));
 
 	return;
+}
+
+void EyeDetector::CascadeDetection(cv::Mat& colorImg, cv::Mat& depth_to_color_img, const uint16_t one_meter) {
+	
+	CvSize originalImage, newROI;
+	originalImage = depth_to_color_img.size();
+	CvPoint pointRB(0, 0), pointLT(originalImage.width-1, originalImage.height-1);
+
+	// Depth images need to be smoothed to cancel noise, which may dramatically expand ROI
+	cv::medianBlur(depth_to_color_img, depth_to_color_img, 5);
+
+	// Resize image ROI, objects only in 50cm~300cm are detected
+	for (int w = 0; w < originalImage.width; ++w) {
+		for (int h = 0; h < originalImage.height; ++h) {
+			uint16_t val = depth_to_color_img.at<uint16_t>(h, w);
+			if (val < one_meter/2 || val>3*one_meter) continue;
+			if (h < pointLT.y) pointLT.y = h;
+			else if (h > pointRB.y) pointRB.y = h;
+			if (w < pointLT.x) pointLT.x = w;
+			else if (w > pointRB.x) pointRB.x = w;
+		}
+	}
+
+	// If nothing appears, return
+	if (pointRB.x <= pointLT.x || pointRB.y <= pointLT.y) return;
+	rectangle(colorImg, pointLT, pointRB, CV_RGB(255, 0, 0), 3, 8, 0);
+
 }

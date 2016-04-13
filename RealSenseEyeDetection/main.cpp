@@ -16,8 +16,9 @@
 int main() try
 {
 	EyeDetector myEyeDetector;
-	cv::Mat depth_img(cv::Size(640, 480), CV_16UC1);
+
 	cv::Mat rgb_img(cv::Size(640, 480), CV_8UC3);
+	cv::Mat depth_img(cv::Size(640, 480), CV_16UC1);
 	cv::Mat depth_to_color_img(cv::Size(640, 480), CV_16UC1);
 	cvNamedWindow("Depth Image", cv::WINDOW_AUTOSIZE);
 	cvNamedWindow("Color Image", cv::WINDOW_AUTOSIZE);
@@ -39,6 +40,9 @@ int main() try
 	dev->enable_stream(rs::stream::color, 640, 480, rs::format::bgr8, 30);
 	dev->start();
 
+	// Determine depth value corresponding to one meter
+	const uint16_t one_meter = static_cast<uint16_t>(1.0f / dev->get_depth_scale());
+
 	while (true)
 	{
 		// This call waits until a new coherent set of frames is available on a device
@@ -46,25 +50,20 @@ int main() try
 		dev->wait_for_frames();
 
 		// Retrieve depth data, which was previously configured as a 640 x 480 image of 16-bit depth values
-		const uint16_t * depth_frame = reinterpret_cast<const uint16_t*>(dev->get_frame_data(rs::stream::depth));
-		memcpy(depth_img.data, depth_frame, depth_img.cols*depth_img.rows * sizeof(uint16_t));
+		// const uint16_t * depth_frame = reinterpret_cast<const uint16_t*>(dev->get_frame_data(rs::stream::depth));
+		// memcpy(depth_img.data, depth_frame, depth_img.cols*depth_img.rows * sizeof(uint16_t));
 		const uint8_t * rgb_frame = reinterpret_cast<const uint8_t*>(dev->get_frame_data(rs::stream::color));
 		memcpy(rgb_img.data, rgb_frame, rgb_img.cols*rgb_img.rows * sizeof(uint8_t)*rgb_img.channels());
 		const uint16_t * depth_to_color_frame = reinterpret_cast<const uint16_t*>(dev->get_frame_data(rs::stream::depth_aligned_to_color));
 		memcpy(depth_to_color_img.data, depth_to_color_frame, depth_to_color_img.cols*depth_to_color_img.rows * sizeof(uint16_t));
 
-		myEyeDetector.CascadeDetection(rgb_img);
+		//myEyeDetector.CascadeDetection(rgb_img);
+		myEyeDetector.CascadeDetection(rgb_img, depth_to_color_img, one_meter);
 
-		double m = 0, M = 10000;
 		cv::Mat dstImage(depth_to_color_img.size(), CV_8UC1);
-		depth_to_color_img.convertTo(dstImage, CV_8UC1, 255-255 / (M - m), 1.0*(-m) / (M - m));
+		depth_to_color_img.convertTo(dstImage, CV_8UC1, -51.0/ one_meter, 255.0);
 		imshow("DTC Image", dstImage);
 		dstImage.release();
-
-		cv::Mat dstImage2(depth_img.size(), CV_8UC1);
-		depth_img.convertTo(dstImage2, CV_8UC1, 255 - 255 / (M - m), 1.0*(-m) / (M - m));
-		imshow("Depth Image", dstImage2);
-		dstImage2.release();
 
 		imshow("Color Image", rgb_img);
 		cv::waitKey(30);
