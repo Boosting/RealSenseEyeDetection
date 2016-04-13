@@ -5,12 +5,24 @@
 // librealsense tutorial #1 - Accessing depth data //
 /////////////////////////////////////////////////////
 
-// First include the librealsense C++ header file
+// Include librealsense and OpenCV header files
 #include <librealsense/rs.hpp>
+#include <opencv2/core.hpp>			// cv::Mat is in here
+#include <opencv2/highgui.hpp>		// cv::imshow is in here
+
 #include <cstdio>
+#include "EyeDetector.h"
 
 int main() try
 {
+	EyeDetector myEyeDetector;
+	cv::Mat depth_img(cv::Size(640, 480), CV_16UC1);
+	cv::Mat rgb_img(cv::Size(640, 480), CV_8UC3);
+	cv::Mat depth_to_color_img(cv::Size(640, 480), CV_16UC1);
+	cvNamedWindow("Depth Image", cv::WINDOW_AUTOSIZE);
+	cvNamedWindow("Color Image", cv::WINDOW_AUTOSIZE);
+	cvNamedWindow("DTC Image", cv::WINDOW_AUTOSIZE);
+
 	// Create a context object. This object owns the handles to all connected realsense devices.
 	rs::context ctx;
 	printf("There are %d connected RealSense devices.\n", ctx.get_device_count());
@@ -22,12 +34,10 @@ int main() try
 	printf("    Serial number: %s\n", dev->get_serial());
 	printf("    Firmware version: %s\n", dev->get_firmware_version());
 
-	// Configure depth to run at VGA resolution at 30 frames per second
+	// Configure all streams to run at VGA resolution at 30 frames per second
 	dev->enable_stream(rs::stream::depth, 640, 480, rs::format::z16, 30);
+	dev->enable_stream(rs::stream::color, 640, 480, rs::format::bgr8, 30);
 	dev->start();
-
-	// Determine depth value corresponding to one meter
-	const uint16_t one_meter = static_cast<uint16_t>(1.0f / dev->get_depth_scale());
 
 	while (true)
 	{
@@ -36,32 +46,28 @@ int main() try
 		dev->wait_for_frames();
 
 		// Retrieve depth data, which was previously configured as a 640 x 480 image of 16-bit depth values
-		const uint16_t * depth_frame = reinterpret_cast<const uint16_t *>(dev->get_frame_data(rs::stream::depth));
+		const uint16_t * depth_frame = reinterpret_cast<const uint16_t*>(dev->get_frame_data(rs::stream::depth));
+		memcpy(depth_img.data, depth_frame, depth_img.cols*depth_img.rows * sizeof(uint16_t));
+		const uint8_t * rgb_frame = reinterpret_cast<const uint8_t*>(dev->get_frame_data(rs::stream::color));
+		memcpy(rgb_img.data, rgb_frame, rgb_img.cols*rgb_img.rows * sizeof(uint8_t)*rgb_img.channels());
+		const uint16_t * depth_to_color_frame = reinterpret_cast<const uint16_t*>(dev->get_frame_data(rs::stream::depth_aligned_to_color));
+		memcpy(depth_to_color_img.data, depth_to_color_frame, depth_to_color_img.cols*depth_to_color_img.rows * sizeof(uint16_t));
 
-		// Print a simple text-based representation of the image, by breaking it into 10x20 pixel regions and and approximating the coverage of pixels within one meter
-		char buffer[(640 / 10 + 1)*(480 / 20) + 1];
-		char * out = buffer;
-		int coverage[64] = {};
-		for (int y = 0; y<480; ++y)
-		{
-			for (int x = 0; x<640; ++x)
-			{
-				int depth = *depth_frame++;
-				if (depth > 0 && depth < one_meter) ++coverage[x / 10];
-			}
+		myEyeDetector.CascadeDetection(rgb_img);
 
-			if (y % 20 == 19)
-			{
-				for (int & c : coverage)
-				{
-					*out++ = " .:nhBXWW"[c / 25];
-					c = 0;
-				}
-				*out++ = '\n';
-			}
-		}
-		*out++ = 0;
-		printf("\n%s", buffer);
+		double m = 0, M = 10000;
+		cv::Mat dstImage(depth_to_color_img.size(), CV_8UC1);
+		depth_to_color_img.convertTo(dstImage, CV_8UC1, 255-255 / (M - m), 1.0*(-m) / (M - m));
+		imshow("DTC Image", dstImage);
+		dstImage.release();
+
+		cv::Mat dstImage2(depth_img.size(), CV_8UC1);
+		depth_img.convertTo(dstImage2, CV_8UC1, 255 - 255 / (M - m), 1.0*(-m) / (M - m));
+		imshow("Depth Image", dstImage2);
+		dstImage2.release();
+
+		imshow("Color Image", rgb_img);
+		cv::waitKey(30);
 	}
 
 	return EXIT_SUCCESS;
