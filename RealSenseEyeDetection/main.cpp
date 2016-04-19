@@ -18,9 +18,7 @@ int main() try
 	EyeDetector myEyeDetector;
 
 	cv::Mat rgb_img(cv::Size(640, 480), CV_8UC3);
-	cv::Mat depth_img(cv::Size(640, 480), CV_16UC1);
 	cv::Mat depth_to_color_img(cv::Size(640, 480), CV_16UC1);
-	cvNamedWindow("Depth Image", cv::WINDOW_AUTOSIZE);
 	cvNamedWindow("Color Image", cv::WINDOW_AUTOSIZE);
 	cvNamedWindow("DTC Image", cv::WINDOW_AUTOSIZE);
 
@@ -58,7 +56,7 @@ int main() try
 		memcpy(depth_to_color_img.data, depth_to_color_frame, depth_to_color_img.cols*depth_to_color_img.rows * sizeof(uint16_t));
 
 		//myEyeDetector.CascadeDetection(rgb_img);
-		myEyeDetector.CascadeDetection(rgb_img, depth_to_color_img, one_meter);
+		myEyeDetector.ImageProcessAndDetect(rgb_img, depth_to_color_img, one_meter);
 
 		cv::Mat dstImage(depth_to_color_img.size(), CV_8UC1);
 		depth_to_color_img.convertTo(dstImage, CV_8UC1, -51.0/ one_meter, 255.0);
