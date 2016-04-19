@@ -16,9 +16,7 @@ private:
 		CV_RGB(255,255,0),
 		CV_RGB(255,0,0),
 		CV_RGB(255,0,255) };
-
-	const int rorates[3] = {0, 15, -15};
-
+	const double rorates[5] = {0.0, 15.0, -15.0, 30.0, -30.0};
 	double scale;
 	cv::CascadeClassifier cascade;
 	cv::CascadeClassifier nestedCascade;
@@ -33,11 +31,13 @@ private:
 	CvSize originalImage;
 	CvPoint roi_lt_point, roi_rb_point;
 	cv::Mat roi_Image;
+	cv::Mat rotate_Image;
 
 	bool IsFaceOverlap(cv::Rect& newFace);
 	void CascadeDetection(cv::Mat& colorImg);
 	void DrawFacesAndEyes(cv::Mat& colorImg);
 	void clearLastFrameInfo();
+
 
 public:
 	EyeDetector();

@@ -93,36 +93,38 @@ void EyeDetector::ImageProcessAndDetect(cv::Mat& colorImg, cv::Mat& depth_to_col
 	// Show refined ROI, use this ROI to detect faces
 	rectangle(colorImg, roi_lt_point, roi_rb_point, CV_RGB(255, 0, 0), 1, 8, 0);
 	roi_Image = cv::Mat(colorImg, cvRect(roi_lt_point.x, roi_lt_point.y, roi_rb_point.x - roi_lt_point.x + 1, roi_rb_point.y - roi_lt_point.y + 1));
+	rotate_Image = cv::Mat(roi_Image.size(), CV_8UC3);
 
-	for (int i = 0; i < 3; ++i) {
-		// Rotate image in 3 directions (0, 15, -15)
-		int rotate = rorates[i];
+	for (int i = 0; i < 5; ++i) {
+		// Rotate image in different directions
+		double rotate = rorates[i];
+		cv::Point2f pt(roi_Image.cols / 2., roi_Image.rows / 2.);
+		cv::Mat r = getRotationMatrix2D(pt, rotate, 1.0);
+		warpAffine(roi_Image, rotate_Image, r, cv::Size(roi_Image.cols, roi_Image.rows));
 
 		// Detect face and eyes, save information
-		CascadeDetection(roi_Image);
+		CascadeDetection(rotate_Image);
 		size_t numFaces = rawFaces.size();
-		size_t numEyes = rawEyes.size();
-		if (numFaces * 2 == numEyes) {
-			std::vector<cv::Rect>::const_iterator faceItr = rawFaces.begin();
-			std::vector<cv::Rect>::const_iterator eyeItr = rawEyes.begin();
+		std::vector<cv::Rect>::const_iterator faceItr = rawFaces.begin();
+		std::vector<cv::Rect>::const_iterator eyeItr = rawEyes.begin();
 
-			for (int j = 0; j < numFaces; ++j) {
-				cv::Rect tmpFace = cvRect((*faceItr).x + roi_lt_point.x, (*faceItr).y + roi_lt_point.y, (*faceItr).width, (*faceItr).height);
-				if (IsFaceOverlap(tmpFace)) {
-					++faceItr;
-					++eyeItr;
-					++eyeItr;
-					continue;
-				};
-
-				resultFaces.push_back(tmpFace);
+		for (int j = 0; j < numFaces; ++j) {
+			cv::Rect tmpFace = cvRect((*faceItr).x + roi_lt_point.x, (*faceItr).y + roi_lt_point.y, (*faceItr).width, (*faceItr).height);
+			if (IsFaceOverlap(tmpFace)) {
 				++faceItr;
-				resultEyes.push_back(*eyeItr);
 				++eyeItr;
-				resultEyes.push_back(*eyeItr);
 				++eyeItr;
-			}
+				continue;
+			};
+
+			resultFaces.push_back(tmpFace);
+			++faceItr;
+			resultEyes.push_back(*eyeItr);
+			++eyeItr;
+			resultEyes.push_back(*eyeItr);
+			++eyeItr;
 		}
+
 		rawFaces.clear();
 		rawEyes.clear();
 	}
