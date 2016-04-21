@@ -7,20 +7,23 @@
 
 // Include librealsense and OpenCV header files
 #include <librealsense/rs.hpp>
-#include <opencv2/core.hpp>			// cv::Mat is in here
-#include <opencv2/highgui.hpp>		// cv::imshow is in here
+#include <opencv2/core.hpp>			// Mat is in here
+#include <opencv2/highgui.hpp>		// imshow is in here
 
 #include <cstdio>
 #include "EyeDetector.h"
+
+using namespace cv;
+using namespace std;
 
 int main() try
 {
 	EyeDetector myEyeDetector;
 
-	cv::Mat rgb_img(cv::Size(640, 480), CV_8UC3);
-	cv::Mat depth_to_color_img(cv::Size(640, 480), CV_16UC1);
-	cvNamedWindow("Color Image", cv::WINDOW_AUTOSIZE);
-	cvNamedWindow("DTC Image", cv::WINDOW_AUTOSIZE);
+	Mat rgb_img(Size(640, 480), CV_8UC3);
+	Mat depth_to_color_img(Size(640, 480), CV_16UC1);
+	cvNamedWindow("Color Image", WINDOW_AUTOSIZE);
+	cvNamedWindow("DTC Image", WINDOW_AUTOSIZE);
 
 	// Create a context object. This object owns the handles to all connected realsense devices.
 	rs::context ctx;
@@ -58,13 +61,13 @@ int main() try
 		//myEyeDetector.CascadeDetection(rgb_img);
 		myEyeDetector.ImageProcessAndDetect(rgb_img, depth_to_color_img, one_meter);
 
-		cv::Mat dstImage(depth_to_color_img.size(), CV_8UC1);
+		Mat dstImage(depth_to_color_img.size(), CV_8UC1);
 		depth_to_color_img.convertTo(dstImage, CV_8UC1, -51.0/ one_meter, 255.0);
 		imshow("DTC Image", dstImage);
 		dstImage.release();
 
 		imshow("Color Image", rgb_img);
-		cv::waitKey(30);
+		waitKey(30);
 	}
 
 	return EXIT_SUCCESS;

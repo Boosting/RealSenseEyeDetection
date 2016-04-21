@@ -9,7 +9,7 @@ EyeDetector::EyeDetector()
 
 	if (!cascade.load(CASCADE_FACE_XML_LOCATION) || !nestedCascade.load(CASCADE_EYE_XML_LOCATION))
 	{
-		std::cout << "ERROR: Could not load Face / Eye classifier cascade" << std::endl;
+		cout << "ERROR: Could not load Face / Eye classifier cascade" << endl;
 	}
 }
 
@@ -17,29 +17,29 @@ EyeDetector::~EyeDetector()
 {
 }
 
-void EyeDetector::CascadeDetection(cv::Mat& colorImg) {
+void EyeDetector::CascadeDetection(Mat& colorImg) {
 	int i = 0;
-	std::vector<cv::Rect> faces;
+	vector<Rect> faces;
 
-	cv::Mat gray, smallImg(cvRound(colorImg.rows / scale), cvRound(colorImg.cols / scale), CV_8UC1);
+	Mat gray, smallImg(cvRound(colorImg.rows / scale), cvRound(colorImg.cols / scale), CV_8UC1);
 
-	cv::cvtColor(colorImg, gray, cv::COLOR_BGR2GRAY);
-	cv::resize(gray, smallImg, smallImg.size(), 0, 0, cv::INTER_LINEAR);
-	cv::equalizeHist(smallImg, smallImg);
+	cvtColor(colorImg, gray, COLOR_BGR2GRAY);
+	resize(gray, smallImg, smallImg.size(), 0, 0, INTER_LINEAR);
+	equalizeHist(smallImg, smallImg);
 	
 	cascade.detectMultiScale(gray, faces,
 		1.1, 3, 0
 		//|CASCADE_DO_CANNY_PRUNING
 		//|CASCADE_FIND_BIGGEST_OBJECT
 		//|CASCADE_DO_ROUGH_SEARCH
-		| cv::CASCADE_SCALE_IMAGE
+		| CASCADE_SCALE_IMAGE
 		,
-		cv::Size(50, 50));
+		Size(50, 50));
 	
-	for (std::vector<cv::Rect>::const_iterator r = faces.begin(); r != faces.end(); r++, i++)
+	for (vector<Rect>::const_iterator r = faces.begin(); r != faces.end(); r++, i++)
 	{
-		cv::Mat smallImgROI;
-		std::vector<cv::Rect> nestedObjects;
+		Mat smallImgROI;
+		vector<Rect> nestedObjects;
 
 		if (nestedCascade.empty())
 			continue;
@@ -50,13 +50,13 @@ void EyeDetector::CascadeDetection(cv::Mat& colorImg) {
 			//|CASCADE_FIND_BIGGEST_OBJECT
 			//|CASCADE_DO_ROUGH_SEARCH
 			//|CASCADE_DO_CANNY_PRUNING
-			| cv::CASCADE_SCALE_IMAGE
+			| CASCADE_SCALE_IMAGE
 			,
-			cv::Size(30, 30));
+			Size(30, 30));
 
 		if (nestedObjects.size() == 2) {
 			rawFaces.push_back(*r);
-			for (std::vector<cv::Rect>::const_iterator nr = nestedObjects.begin(); nr != nestedObjects.end(); nr++)
+			for (vector<Rect>::const_iterator nr = nestedObjects.begin(); nr != nestedObjects.end(); nr++)
 			{
 				rawEyes.push_back(*nr);
 			}
@@ -66,14 +66,14 @@ void EyeDetector::CascadeDetection(cv::Mat& colorImg) {
 	return;
 }
 
-void EyeDetector::ImageProcessAndDetect(cv::Mat& colorImg, cv::Mat& depth_to_color_img, const uint16_t one_meter) {
+void EyeDetector::ImageProcessAndDetect(Mat& colorImg, Mat& depth_to_color_img, const uint16_t one_meter) {
 	double t = (double)cvGetTickCount();
 
 	originalImage = depth_to_color_img.size();
 	clearLastFrameInfo();
 
 	// Depth images need to be smoothed to cancel noise, which may dramatically expand ROI
-	cv::medianBlur(depth_to_color_img, depth_to_color_img, 5);
+	medianBlur(depth_to_color_img, depth_to_color_img, 5);
 
 	// Resize image ROI, objects only in 50cm~300cm are detected
 	for (int w = 0; w < originalImage.width; ++w) {
@@ -92,24 +92,32 @@ void EyeDetector::ImageProcessAndDetect(cv::Mat& colorImg, cv::Mat& depth_to_col
 
 	// Show refined ROI, use this ROI to detect faces
 	rectangle(colorImg, roi_lt_point, roi_rb_point, CV_RGB(255, 0, 0), 1, 8, 0);
-	roi_Image = cv::Mat(colorImg, cvRect(roi_lt_point.x, roi_lt_point.y, roi_rb_point.x - roi_lt_point.x + 1, roi_rb_point.y - roi_lt_point.y + 1));
-	rotate_Image = cv::Mat(roi_Image.size(), CV_8UC3);
+	roi_Image = Mat(colorImg, cvRect(roi_lt_point.x, roi_lt_point.y, roi_rb_point.x - roi_lt_point.x + 1, roi_rb_point.y - roi_lt_point.y + 1));
+	rotate_Image = Mat(roi_Image.size(), CV_8UC3);
 
 	for (int i = 0; i < 5; ++i) {
-		// Rotate image in different directions
+		// Rotate image in different directions, once get the eyes' coordinates, rotate the positions back to original image
 		double rotate = rorates[i];
-		cv::Point2f pt(roi_Image.cols / 2., roi_Image.rows / 2.);
-		cv::Mat r = getRotationMatrix2D(pt, rotate, 1.0);
-		warpAffine(roi_Image, rotate_Image, r, cv::Size(roi_Image.cols, roi_Image.rows));
+		Point2f pt(roi_Image.cols / 2., roi_Image.rows / 2.);
+		Mat rMat = getRotationMatrix2D(pt, rotate, 1.0);
+		Mat rbMat = getRotationMatrix2D(pt, -rotate, 1.0);
+		warpAffine(roi_Image, rotate_Image, rMat, Size(roi_Image.cols, roi_Image.rows));
 
 		// Detect face and eyes, save information
 		CascadeDetection(rotate_Image);
 		size_t numFaces = rawFaces.size();
-		std::vector<cv::Rect>::const_iterator faceItr = rawFaces.begin();
-		std::vector<cv::Rect>::const_iterator eyeItr = rawEyes.begin();
+		if (numFaces == 0) continue;
+
+		// Detected faces and eyes are saved in raw info, not rotated back.
+		// The following function is to get the source(ROI) coordinate of faces and eyes.
+		// To get the global coordinates, simply add roi_lt_point.x and roi_lt_point.y to the points.
+		rotateBackRawInfo(rbMat);
+		vector<Rect>::const_iterator faceItr = rawFaces.begin();
+		vector<Rect>::const_iterator eyeItr = rawEyes.begin();
 
 		for (int j = 0; j < numFaces; ++j) {
-			cv::Rect tmpFace = cvRect((*faceItr).x + roi_lt_point.x, (*faceItr).y + roi_lt_point.y, (*faceItr).width, (*faceItr).height);
+
+			Rect tmpFace = cvRect((*faceItr).x + roi_lt_point.x, (*faceItr).y + roi_lt_point.y, (*faceItr).width, (*faceItr).height);
 			if (IsFaceOverlap(tmpFace)) {
 				++faceItr;
 				++eyeItr;
@@ -119,9 +127,9 @@ void EyeDetector::ImageProcessAndDetect(cv::Mat& colorImg, cv::Mat& depth_to_col
 
 			resultFaces.push_back(tmpFace);
 			++faceItr;
-			resultEyes.push_back(*eyeItr);
+			resultEyes.push_back(cvRect((*eyeItr).x + roi_lt_point.x, (*eyeItr).y + roi_lt_point.y, (*eyeItr).width, (*eyeItr).height));
 			++eyeItr;
-			resultEyes.push_back(*eyeItr);
+			resultEyes.push_back(cvRect((*eyeItr).x + roi_lt_point.x, (*eyeItr).y + roi_lt_point.y, (*eyeItr).width, (*eyeItr).height));
 			++eyeItr;
 		}
 
@@ -144,44 +152,42 @@ void EyeDetector::clearLastFrameInfo() {
 }
 
 
-void EyeDetector::DrawFacesAndEyes(cv::Mat& colorImg) {
+void EyeDetector::DrawFacesAndEyes(Mat& colorImg) {
 	size_t numFaces = resultFaces.size();
 	size_t numEyes = resultEyes.size();
 	if (numFaces * 2 != numEyes) return;
 	
-	std::vector<cv::Rect>::const_iterator faceItr = resultFaces.begin();
-	std::vector<cv::Rect>::const_iterator eyeItr = resultEyes.begin();
+	vector<Rect>::const_iterator faceItr = resultFaces.begin();
+	vector<Rect>::const_iterator eyeItr = resultEyes.begin();
 
 	for (int i = 0; i < numFaces; ++i) {
-		cv::Point center;
-		cv::Scalar color = colors[i % 8];
+		Point center;
+		Scalar color = colors[i % 8];
 		int radius;
 
 		center.x = cvRound((faceItr->x + faceItr->width*0.5)*scale);
 		center.y = cvRound((faceItr->y + faceItr->height*0.5)*scale);
 		radius = cvRound((faceItr->width + faceItr->height)*0.25*scale);
 		circle(colorImg, center, radius, color, 3, 8, 0);
+		++faceItr;
 
-		center.x = cvRound((faceItr->x + eyeItr->x + eyeItr->width*0.5)*scale);
-		center.y = cvRound((faceItr->y + eyeItr->y + eyeItr->height*0.5)*scale);
+		center.x = cvRound((eyeItr->x + eyeItr->width*0.5)*scale);
+		center.y = cvRound((eyeItr->y + eyeItr->height*0.5)*scale);
 		radius = cvRound((eyeItr->width + eyeItr->height)*0.25*scale);
 		circle(colorImg, center, radius, color, 3, 8, 0);
-
 		++eyeItr;
 
-		center.x = cvRound((faceItr->x + eyeItr->x + eyeItr->width*0.5)*scale);
-		center.y = cvRound((faceItr->y + eyeItr->y + eyeItr->height*0.5)*scale);
+		center.x = cvRound((eyeItr->x + eyeItr->width*0.5)*scale);
+		center.y = cvRound((eyeItr->y + eyeItr->height*0.5)*scale);
 		radius = cvRound((eyeItr->width + eyeItr->height)*0.25*scale);
 		circle(colorImg, center, radius, color, 3, 8, 0);
-
-		++faceItr;
 		++eyeItr;
 	}
 }
 
-bool EyeDetector::IsFaceOverlap(cv::Rect& newFace) {
+bool EyeDetector::IsFaceOverlap(Rect& newFace) {
 
-	for (std::vector<cv::Rect>::const_iterator faceItr = resultFaces.begin(); faceItr != resultFaces.end(); ++faceItr)
+	for (vector<Rect>::const_iterator faceItr = resultFaces.begin(); faceItr != resultFaces.end(); ++faceItr)
 	{
 		// If one rectangle is on left side of other
 		if (newFace.x > (*faceItr).x + (*faceItr).width || (*faceItr).x > newFace.x + newFace.width) continue;
@@ -190,4 +196,54 @@ bool EyeDetector::IsFaceOverlap(cv::Rect& newFace) {
 		return true;
 	}
 	return false;
+}
+
+
+void EyeDetector::rotateBackRawInfo(Mat& rbMat) {
+	size_t numFaces = rawFaces.size();
+	vector<Rect>::iterator faceItr = rawFaces.begin();
+	vector<Rect>::iterator eyeItr = rawEyes.begin();
+
+	for (int i = 0; i < numFaces; ++i) {
+		CvPoint faceLT((*faceItr).x, (*faceItr).y);
+		CvPoint faceRB((*faceItr).x + (*faceItr).width, (*faceItr).y + (*faceItr).height);
+
+		CvPoint eye1LT(faceLT.x + (*eyeItr).x, faceLT.y + (*eyeItr).y);
+		CvPoint eye1RB(eye1LT.x + (*eyeItr).width, eye1LT.y + (*eyeItr).height);
+		eye1LT = rotateBackPoints(eye1LT, rbMat);
+		eye1RB = rotateBackPoints(eye1RB, rbMat);
+		(*eyeItr).x = eye1LT.x;
+		(*eyeItr).y = eye1LT.y;
+		(*eyeItr).width = eye1RB.x - eye1LT.x;
+		(*eyeItr).height = eye1RB.y - eye1LT.y;
+		++eyeItr;
+
+		CvPoint eye2LT(faceLT.x + (*eyeItr).x, faceLT.y + (*eyeItr).y);
+		CvPoint eye2RB(eye2LT.x + (*eyeItr).width, eye2LT.y + (*eyeItr).height);
+		eye2LT = rotateBackPoints(eye2LT, rbMat);
+		eye2RB = rotateBackPoints(eye2RB, rbMat);
+		(*eyeItr).x = eye2LT.x;
+		(*eyeItr).y = eye2LT.y;
+		(*eyeItr).width = eye2RB.x - eye2LT.x;
+		(*eyeItr).height = eye2RB.y - eye2LT.y;
+		++eyeItr;
+
+		faceLT = rotateBackPoints(faceLT, rbMat);
+		faceRB = rotateBackPoints(faceRB, rbMat);
+		(*faceItr).x = faceLT.x;
+		(*faceItr).y = faceLT.y;
+		(*faceItr).width = faceRB.x - faceLT.x;
+		(*faceItr).height = faceRB.y - faceLT.y;
+		++faceItr;
+	}
+
+	return;
+}
+
+CvPoint EyeDetector::rotateBackPoints(CvPoint srcPoint, Mat& rbMat) {
+	double np1 = srcPoint.x, np2 = srcPoint.y;
+	double p1, p2;
+	p1 = np1 * rbMat.at<double>(0, 0) + np2 * rbMat.at<double>(0, 1) + rbMat.at<double>(0, 2);
+	p2 = np1 * rbMat.at<double>(1, 0) + np2 * rbMat.at<double>(1, 1) + rbMat.at<double>(1, 2);
+	return CvPoint((int)p1, (int)p2);
 }
