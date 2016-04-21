@@ -36,7 +36,6 @@ private:
 
 	bool IsFaceOverlap(Rect& newFace);
 	void CascadeDetection(Mat& colorImg);
-	void DrawFacesAndEyes(Mat& colorImg);
 	void clearLastFrameInfo();
 
 	CvPoint rotateBackPoints(CvPoint srcPoint, Mat& rbMat);
@@ -48,5 +47,6 @@ public:
 	~EyeDetector();
 
 	void ImageProcessAndDetect(Mat& colorImg, Mat& depth_to_color_img, const uint16_t one_meter);
+	void DrawFacesAndEyes(Mat& colorImg);
 };
 

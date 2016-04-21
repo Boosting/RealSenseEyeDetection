@@ -58,8 +58,8 @@ int main() try
 		const uint16_t * depth_to_color_frame = reinterpret_cast<const uint16_t*>(dev->get_frame_data(rs::stream::depth_aligned_to_color));
 		memcpy(depth_to_color_img.data, depth_to_color_frame, depth_to_color_img.cols*depth_to_color_img.rows * sizeof(uint16_t));
 
-		//myEyeDetector.CascadeDetection(rgb_img);
 		myEyeDetector.ImageProcessAndDetect(rgb_img, depth_to_color_img, one_meter);
+		myEyeDetector.DrawFacesAndEyes(rgb_img);
 
 		Mat dstImage(depth_to_color_img.size(), CV_8UC1);
 		depth_to_color_img.convertTo(dstImage, CV_8UC1, -51.0/ one_meter, 255.0);

@@ -138,7 +138,6 @@ void EyeDetector::ImageProcessAndDetect(Mat& colorImg, Mat& depth_to_color_img, 
 	}
 
 	// Draw faces and eyes
-	DrawFacesAndEyes(colorImg);
 
 	t = (double)cvGetTickCount() - t;
 	printf("numFaces = %d, detection time = %g ms\n", resultFaces.size(), t / ((double)cvGetTickFrequency()*1000.));
