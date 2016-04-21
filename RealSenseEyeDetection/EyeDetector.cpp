@@ -1,7 +1,5 @@
 #include "EyeDetector.h"
 
-#define CASCADE_FACE_XML_LOCATION "D:/Lib/OpenCV/build/etc/haarcascades/haarcascade_frontalface_default.xml"
-#define CASCADE_EYE_XML_LOCATION "D:/Lib/OpenCV/build/etc/haarcascades/haarcascade_eye_tree_eyeglasses.xml"
 
 EyeDetector::EyeDetector()
 {
@@ -68,6 +66,7 @@ void EyeDetector::CascadeDetection(Mat& colorImg) {
 
 void EyeDetector::ImageProcessAndDetect(Mat& colorImg, Mat& depth_to_color_img, const uint16_t one_meter) {
 	double t = (double)cvGetTickCount();
+	double one_meter_d = (double)one_meter;
 
 	originalImage = depth_to_color_img.size();
 	clearLastFrameInfo();
@@ -78,8 +77,8 @@ void EyeDetector::ImageProcessAndDetect(Mat& colorImg, Mat& depth_to_color_img, 
 	// Resize image ROI, objects only in 50cm~300cm are detected
 	for (int w = 0; w < originalImage.width; ++w) {
 		for (int h = 0; h < originalImage.height; ++h) {
-			uint16_t val = depth_to_color_img.at<uint16_t>(h, w);
-			if (val < one_meter/2 || val>3*one_meter) continue;
+			double val = (double)depth_to_color_img.at<uint16_t>(h, w);
+			if (val < one_meter_d * CLOSEST_DEPTH_DISTANCE || val > one_meter_d * FARTHEST_DEPTH_DISTANCE) continue;
 			if (h < roi_lt_point.y) roi_lt_point.y = h;
 			else if (h > roi_rb_point.y) roi_rb_point.y = h;
 			if (w < roi_lt_point.x) roi_lt_point.x = w;

@@ -5,6 +5,8 @@
 #include <opencv2/highgui.hpp>		// imshow is in here
 #include <opencv2/objdetect.hpp>	// CascadeClassifier is in here
 
+#include "Parameters.h"
+
 using namespace cv;
 using namespace std;
 

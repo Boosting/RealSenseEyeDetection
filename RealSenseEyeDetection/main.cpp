@@ -62,7 +62,20 @@ int main() try
 		myEyeDetector.DrawFacesAndEyes(rgb_img);
 
 		Mat dstImage(depth_to_color_img.size(), CV_8UC1);
-		depth_to_color_img.convertTo(dstImage, CV_8UC1, -51.0/ one_meter, 255.0);
+		for (int i = 0; i < dstImage.rows; ++i) {
+			for (int j = 0; j < dstImage.cols; ++j) {
+				uint16_t val = depth_to_color_img.at<uint16_t>(i, j);
+				double val2;
+				if (val ==0) {
+					dstImage.at<uint8_t>(i, j) = (uint8_t)val;
+				}
+				else {
+					val2 = (double)val * (-51.0) / one_meter + 255.0;
+					dstImage.at<uint8_t>(i, j) = (uint8_t)val2;
+				}
+			}
+		}
+
 		imshow("DTC Image", dstImage);
 		dstImage.release();
 
