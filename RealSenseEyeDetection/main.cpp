@@ -21,8 +21,7 @@
 using namespace cv;
 using namespace std;
 
-Point FindDepthRoughPoint(Point srcPt, const uint16_t * depth_frame, float scale, rs::intrinsics& depth_intrin, rs::extrinsics& depth_to_color_extrin, rs::intrinsics& color_intrin);
-Point FindDepthExactPoint(Point roughPt, Point srcPt, const uint16_t * depth_frame, float scale, rs::intrinsics& depth_intrin, rs::extrinsics& depth_to_color_extrin, rs::intrinsics& color_intrin, int range);
+vector<Point> FindDepthPoint(vector<Point>& srcPts, const uint16_t * depth_frame, float scale, rs::intrinsics& depth_intrin, rs::extrinsics& depth_to_color_extrin, rs::intrinsics& color_intrin);
 
 int main() try
 {
@@ -81,35 +80,28 @@ int main() try
 		myEyeDetector.DrawFacesAndEyes(depth_to_color_img);
 
 		// Convert eye position from color image to depth image,
-		// Save converted locations to myPupilLocator
-		// Cannot deproject the already distorted color image, use my method instead.
-		// Based on the fact that the depth camera is on the left of colro camera.
-		// Steps:
-		//   1. For each keypoint (i.e. lt & rb point of eye rect) of color image, use the exact coordinate location (x, y)
-		//   2. If depth image of (x, y) value is 0, x++ until (x, y) is not 0. Goto step 3.
-		//   3. Deproject (x, y) -> transform -> project, get a (p, q) in color image
-		//   4. Add the dist (save result as (a, b)) of lt and (p, q) to (p, q), search the area of (p+-15, q+-15)
-
 		size_t numEyes = myEyeDetector.getEyesSize();
 
-		for (int i = 0; i < numEyes; ++i) {
-			Rect curEye = myEyeDetector.getEyeLoc(i);
-			Point srcLT(curEye.x, curEye.y), srcRB(curEye.x + curEye.width, curEye.y + curEye.height);
+		if (numEyes != 0) {
+			vector<Point> colorEyePoints;
 
-			Point dstRoughLT = FindDepthRoughPoint(srcLT, depth_frame, scale, depth_intrin, depth_to_color_extrin, color_intrin);
-			Point dstRoughRB = FindDepthRoughPoint(srcRB, depth_frame, scale, depth_intrin, depth_to_color_extrin, color_intrin);
+			for (int i = 0; i < numEyes; ++i) {
+				Rect curEye = myEyeDetector.getEyeLoc(i);
+				colorEyePoints.push_back(Point(curEye.x, curEye.y));
+				colorEyePoints.push_back(Point(curEye.x + curEye.width, curEye.y + curEye.height));
+			}
 
-			Point dstExactLT = FindDepthExactPoint(dstRoughLT, srcLT, depth_frame, scale, depth_intrin, depth_to_color_extrin, color_intrin, DEPTH_PIXEL_SEARCH_RANGE);
-			Point dstExactRB = FindDepthExactPoint(dstRoughRB, srcRB, depth_frame, scale, depth_intrin, depth_to_color_extrin, color_intrin, DEPTH_PIXEL_SEARCH_RANGE);
+			vector<Point> depthEyePoints = FindDepthPoint(colorEyePoints, depth_frame, scale, depth_intrin, depth_to_color_extrin, color_intrin);
 
-			myPupilLocator.AddEye(cvRect(dstExactLT.x, dstExactLT.y, dstExactRB.x - dstExactLT.x, dstExactRB.y - dstExactLT.y));
+			for (int i = 0; i < numEyes; ++i) {
+				myPupilLocator.AddEye(cvRect(depthEyePoints[i * 2].x, depthEyePoints[i * 2].y, depthEyePoints[i * 2 + 1].x - depthEyePoints[i * 2].x, depthEyePoints[i * 2 + 1].y - depthEyePoints[i * 2].y));
+			}
+
+			// Detect / Draw pupils in depth image
+			myPupilLocator.DrawEyes(depth_img);
+			myPupilLocator.DetectPupils(depth_img);
+			myPupilLocator.DrawPupils(depth_img);
 		}
-
-		// Detect / Draw pupils in depth image
-		myPupilLocator.DrawEyes(depth_img);
-		myPupilLocator.DetectPupils(depth_img);
-		myPupilLocator.DrawPupils(depth_img);
-
 
 		// Show images
 		Mat dst_dtc_Image(depth_to_color_img.size(), CV_8UC1);
@@ -169,55 +161,41 @@ catch (const rs::error & e)
 	return EXIT_FAILURE;
 }
 
-Point FindDepthRoughPoint(Point srcPt, const uint16_t * depth_frame, float scale, rs::intrinsics& depth_intrin, rs::extrinsics& depth_to_color_extrin, rs::intrinsics& color_intrin) {
-	Point tryPt(srcPt.x, srcPt.y);
 
-	// Retrieve the 16-bit depth value and map it into a depth in meters
-	// Skip over pixels with a depth value of zero, which is used to indicate no data
-	uint16_t depth_value = depth_frame[tryPt.y * depth_intrin.width + tryPt.x];
-	float depth_in_meters = depth_value * scale;
-	while (depth_value == 0) {
-		tryPt.x++;
-		depth_value = depth_frame[tryPt.y * depth_intrin.width + tryPt.x];
-		depth_in_meters = depth_value * scale;
-	}
+vector<Point> FindDepthPoint(vector<Point>& srcPts, const uint16_t * depth_frame, float scale, rs::intrinsics& depth_intrin, rs::extrinsics& depth_to_color_extrin, rs::intrinsics& color_intrin) {
+	size_t size = srcPts.size();
+	vector<int> distList(size, INT_MAX);
+	vector<Point> resultVec(size, Point(0, 0));
 
-	// Map from pixel coordinates in the depth image to pixel coordinates in the color image
-	rs::float2 depth_pixel = { (float)tryPt.x, (float)tryPt.y };
-	rs::float3 depth_point = depth_intrin.deproject(depth_pixel, depth_in_meters);
-	rs::float3 color_point = depth_to_color_extrin.transform(depth_point);
-	rs::float2 color_pixel = color_intrin.project(color_point);
-
-	tryPt.x = srcPt.x + srcPt.x - round(color_pixel.x);
-	tryPt.y = srcPt.y + srcPt.y - round(color_pixel.y);
-
-	return tryPt;
-}
-
-Point FindDepthExactPoint(Point roughPt, Point srcPt, const uint16_t * depth_frame, float scale, rs::intrinsics& depth_intrin, rs::extrinsics& depth_to_color_extrin, rs::intrinsics& color_intrin, int range) {
-	map<int, Point> resultPtsMap;
-	uint16_t depth_value;
-	float depth_in_meters;
-
-	for (int x = roughPt.x - range; x < roughPt.x + range; ++x) {
-		if (x < 0 || x >= depth_intrin.width) continue;
-		for (int y = roughPt.y - range; y < roughPt.y + range; ++y) {
-			if (y < 0 || y >= depth_intrin.height) continue;
-			depth_value = depth_frame[y * depth_intrin.width + x];
+	for (int dy = 0; dy<depth_intrin.height; ++dy)
+	{
+		for (int dx = 0; dx<depth_intrin.width; ++dx)
+		{
+			// Retrieve the 16-bit depth value and map it into a depth in meters
+			uint16_t depth_value = depth_frame[dy * depth_intrin.width + dx];
+			// Skip over pixels with a depth value of zero, which is used to indicate no data
 			if (depth_value == 0) continue;
-			depth_in_meters = depth_value * scale;
+			float depth_in_meters = depth_value * scale;
 
-			rs::float2 depth_pixel = { (float)x, (float)y };
+			// Map from pixel coordinates in the depth image to pixel coordinates in the color image
+			rs::float2 depth_pixel = { (float)dx, (float)dy };
 			rs::float3 depth_point = depth_intrin.deproject(depth_pixel, depth_in_meters);
 			rs::float3 color_point = depth_to_color_extrin.transform(depth_point);
 			rs::float2 color_pixel = color_intrin.project(color_point);
 
-			Point resPixel(color_pixel.x, color_pixel.y);
-			double dist = norm(resPixel - srcPt);
-			if (dist < 10) resultPtsMap[(int)(dist * 10)] = Point(x, y);
+			// Use the color from the nearest color pixel, or pure white if this point falls outside the color image
+			const int cx = (int)round(color_pixel.x), cy = (int)round(color_pixel.y);
+			if (cx < 0 || cy < 0 || cx >= color_intrin.width || cy >= color_intrin.height) continue;
+			
+			for (int i = 0; i < size; ++i) {
+				int dist = (int)(norm(srcPts[i] - Point(cx, cy)) * 10.);
+				if (dist < distList[i]) {
+					distList[i] = dist;
+					resultVec[i] = Point((int)round(dx), (int)round(dy));
+				}
+			}
 		}
 	}
 
-	map<int, Point>::iterator it = resultPtsMap.begin();
-	return (*it).second;
+	return resultVec;
 }
