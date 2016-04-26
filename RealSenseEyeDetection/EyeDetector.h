@@ -2,7 +2,6 @@
 #include <iostream>
 #include <opencv2/core.hpp>			// Mat is in here
 #include <opencv2/imgproc.hpp>		// circle is in here
-#include <opencv2/highgui.hpp>		// imshow is in here
 #include <opencv2/objdetect.hpp>	// CascadeClassifier is in here
 
 #include "Parameters.h"
@@ -22,7 +21,7 @@ private:
 		CV_RGB(255,0,0),
 		CV_RGB(255,0,255) };
 	const double rorates[5] = {0.0, 15.0, -15.0, 30.0, -30.0};
-	double scale;
+	const double scale = 1.0;
 	CascadeClassifier cascade;
 	CascadeClassifier nestedCascade;
 
@@ -30,6 +29,7 @@ private:
 	vector<Rect> rawEyes;
 	vector<Rect> resultFaces;	// Faces: saving absolute locations
 	vector<Rect> resultEyes;	// Eyes: saving absolute locations
+	vector<CvPoint> resultPupils;	// Pupils: pupil center corresponding to eyes, absolute locations.
 
 	CvSize originalImage;
 	CvPoint roi_lt_point, roi_rb_point;
@@ -38,7 +38,7 @@ private:
 
 	bool IsFaceOverlap(Rect& newFace);
 	void CascadeDetection(Mat& colorImg);
-	void clearLastFrameInfo();
+	void HoughPupilDetection(Mat& colorImg);
 
 	CvPoint rotateBackPoints(CvPoint srcPoint, Mat& rbMat);
 	void rotateBackRawInfo(Mat& rbMat);
@@ -50,5 +50,9 @@ public:
 
 	void ImageProcessAndDetect(Mat& colorImg, Mat& depth_to_color_img, const uint16_t one_meter);
 	void DrawFacesAndEyes(Mat& colorImg);
+	void ClearInfo();
+
+	const size_t getEyesSize();
+	const Rect getEyeLoc(int num);
 };
 

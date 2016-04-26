@@ -3,8 +3,6 @@
 
 EyeDetector::EyeDetector()
 {
-	scale = 1.0;
-
 	if (!cascade.load(CASCADE_FACE_XML_LOCATION) || !nestedCascade.load(CASCADE_EYE_XML_LOCATION))
 	{
 		cout << "ERROR: Could not load Face / Eye classifier cascade" << endl;
@@ -50,7 +48,7 @@ void EyeDetector::CascadeDetection(Mat& colorImg) {
 			//|CASCADE_DO_CANNY_PRUNING
 			| CASCADE_SCALE_IMAGE
 			,
-			Size(30, 30));
+			Size(15, 15));
 
 		if (nestedObjects.size() == 2) {
 			rawFaces.push_back(*r);
@@ -64,12 +62,39 @@ void EyeDetector::CascadeDetection(Mat& colorImg) {
 	return;
 }
 
+void EyeDetector::HoughPupilDetection(Mat& colorImg){
+	// It is not working properly - can't detect pupils as expected.
+	if (resultEyes.size() == 0) return;
+
+	Mat gray;
+	cvtColor(colorImg, gray, CV_BGR2GRAY);
+	// smooth it, otherwise a lot of false circles may be detected
+	// GaussianBlur(gray, gray, Size(9, 9), 2, 2);
+
+	for (vector<Rect>::const_iterator eyeItr = resultEyes.begin(); eyeItr != resultEyes.end(); ++eyeItr) {
+		Mat roiEye = Mat(gray, (*eyeItr));
+		vector<Vec3f> circles;
+		HoughCircles(roiEye, circles, CV_HOUGH_GRADIENT,
+			2, roiEye.rows / 8);
+
+		for (size_t i = 0; i < circles.size(); i++)
+		{
+			Point center(cvRound(circles[i][0]), cvRound(circles[i][1]));
+			int radius = cvRound(circles[i][2]);
+			// draw the circle center
+			circle(colorImg, CvPoint((*eyeItr).x+ center.x, (*eyeItr).y + center.y), 3, Scalar(0, 255, 0), -1, 8, 0);
+			// draw the circle outline
+			circle(colorImg, CvPoint((*eyeItr).x + center.x, (*eyeItr).y + center.y), radius, Scalar(255, 0, 0), 3, 8, 0);
+		}
+	}
+    return;
+}
+
 void EyeDetector::ImageProcessAndDetect(Mat& colorImg, Mat& depth_to_color_img, const uint16_t one_meter) {
 	double t = (double)cvGetTickCount();
 	double one_meter_d = (double)one_meter;
 
 	originalImage = depth_to_color_img.size();
-	clearLastFrameInfo();
 
 	// Depth images need to be smoothed to cancel noise, which may dramatically expand ROI
 	medianBlur(depth_to_color_img, depth_to_color_img, 5);
@@ -97,7 +122,7 @@ void EyeDetector::ImageProcessAndDetect(Mat& colorImg, Mat& depth_to_color_img, 
 	for (int i = 0; i < 5; ++i) {
 		// Rotate image in different directions, once get the eyes' coordinates, rotate the positions back to original image
 		double rotate = rorates[i];
-		Point2f pt(roi_Image.cols / 2., roi_Image.rows / 2.);
+		Point2d pt(roi_Image.cols / 2., roi_Image.rows / 2.);
 		Mat rMat = getRotationMatrix2D(pt, rotate, 1.0);
 		Mat rbMat = getRotationMatrix2D(pt, -rotate, 1.0);
 		warpAffine(roi_Image, rotate_Image, rMat, Size(roi_Image.cols, roi_Image.rows));
@@ -136,16 +161,18 @@ void EyeDetector::ImageProcessAndDetect(Mat& colorImg, Mat& depth_to_color_img, 
 		rawEyes.clear();
 	}
 
-	// Draw faces and eyes
+	//Detect pupils after eyes
+	//HoughPupilDetection(rotate_Image);
+	
 
 	t = (double)cvGetTickCount() - t;
 	printf("numFaces = %d, detection time = %g ms\n", resultFaces.size(), t / ((double)cvGetTickFrequency()*1000.));
 }
 
-void EyeDetector::clearLastFrameInfo() {
+void EyeDetector::ClearInfo() {
 	resultFaces.clear();
 	resultEyes.clear();
-	roi_lt_point = cvPoint(originalImage.width - 1, originalImage.height - 1);
+	roi_lt_point = cvPoint(INT_MAX, INT_MAX);
 	roi_rb_point = cvPoint(0, 0);
 }
 
@@ -244,4 +271,13 @@ CvPoint EyeDetector::rotateBackPoints(CvPoint srcPoint, Mat& rbMat) {
 	p1 = np1 * rbMat.at<double>(0, 0) + np2 * rbMat.at<double>(0, 1) + rbMat.at<double>(0, 2);
 	p2 = np1 * rbMat.at<double>(1, 0) + np2 * rbMat.at<double>(1, 1) + rbMat.at<double>(1, 2);
 	return CvPoint((int)p1, (int)p2);
+}
+
+const size_t EyeDetector::getEyesSize() {
+	return resultEyes.size();
+}
+
+const Rect EyeDetector::getEyeLoc(int num) {
+	assert(num <= resultEyes.size());
+	return resultEyes[num];
 }

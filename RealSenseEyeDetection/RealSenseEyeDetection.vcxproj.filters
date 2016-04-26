@@ -21,12 +21,18 @@
     <ClCompile Include="EyeDetector.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="PupilLocator.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="EyeDetector.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Parameters.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="PupilLocator.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
