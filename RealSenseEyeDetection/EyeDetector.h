@@ -3,6 +3,7 @@
 #include <opencv2/core.hpp>			// Mat is in here
 #include <opencv2/imgproc.hpp>		// circle is in here
 #include <opencv2/objdetect.hpp>	// CascadeClassifier is in here
+#include <opencv2/highgui.hpp>		// imshow is in here
 
 #include "Parameters.h"
 
@@ -27,29 +28,30 @@ private:
 
 	vector<Rect> rawFaces;
 	vector<Rect> rawEyes;
+	vector<Point> rawPupils;
 	vector<Rect> resultFaces;	// Faces: saving absolute locations
 	vector<Rect> resultEyes;	// Eyes: saving absolute locations
-	vector<CvPoint> resultPupils;	// Pupils: pupil center corresponding to eyes, absolute locations.
+	vector<Point> resultPupils;	// Pupils: pupil center corresponding to eyes, absolute locations.
 
-	CvSize originalImage;
-	CvPoint roi_lt_point, roi_rb_point;
+	CvSize original_Image_size;
+	Point roi_lt_point, roi_rb_point;
+	Mat gray_Image;
 	Mat roi_Image;
-	Mat rotate_Image;
+	Mat rotated_Image;
 
 	bool IsFaceOverlap(Rect& newFace);
-	void CascadeDetection(Mat& colorImg);
-	void HoughPupilDetection(Mat& colorImg);
+	void CascadeDetection(Mat& inputImg);
+	void PupilDetection(Mat& inputImg);
 
-	CvPoint rotateBackPoints(CvPoint srcPoint, Mat& rbMat);
+	Point rotateBackPoints(Point srcPoint, Mat& rbMat);
 	void rotateBackRawInfo(Mat& rbMat);
-
 
 public:
 	EyeDetector();
 	~EyeDetector();
 
 	void ImageProcessAndDetect(Mat& colorImg, Mat& depth_to_color_img, const uint16_t one_meter);
-	void DrawFacesAndEyes(Mat& colorImg);
+	void DrawDetectedInfo(Mat& colorImg);
 	void ClearInfo();
 
 	const size_t getEyesSize();

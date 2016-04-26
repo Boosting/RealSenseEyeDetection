@@ -2,6 +2,7 @@
 #include <iostream>
 #include <opencv2/core.hpp>			// Mat is in here
 #include <opencv2/imgproc.hpp>		// circle is in here
+#include <opencv2/highgui.hpp>		// imshow is in here
 
 using namespace cv;
 using namespace std;

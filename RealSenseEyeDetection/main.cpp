@@ -14,7 +14,6 @@
 #include <opencv2/core.hpp>			// Mat is in here
 #include <opencv2/highgui.hpp>		// imshow is in here
 #include <cstdio>
-#include <map>
 
 #define DEPTH_PIXEL_SEARCH_RANGE (15)
 
@@ -76,12 +75,13 @@ int main() try
 
 		// Detect / Draw faces and eyes in color image
 		myEyeDetector.ImageProcessAndDetect(rgb_img, depth_to_color_img, one_meter);
-		myEyeDetector.DrawFacesAndEyes(rgb_img);
-		myEyeDetector.DrawFacesAndEyes(depth_to_color_img);
+		myEyeDetector.DrawDetectedInfo(rgb_img);
+		myEyeDetector.DrawDetectedInfo(depth_to_color_img);
 
 		// Convert eye position from color image to depth image,
 		size_t numEyes = myEyeDetector.getEyesSize();
-
+		
+		/*
 		if (numEyes != 0) {
 			vector<Point> colorEyePoints;
 
@@ -94,7 +94,7 @@ int main() try
 			vector<Point> depthEyePoints = FindDepthPoint(colorEyePoints, depth_frame, scale, depth_intrin, depth_to_color_extrin, color_intrin);
 
 			for (int i = 0; i < numEyes; ++i) {
-				myPupilLocator.AddEye(cvRect(depthEyePoints[i * 2].x, depthEyePoints[i * 2].y, depthEyePoints[i * 2 + 1].x - depthEyePoints[i * 2].x, depthEyePoints[i * 2 + 1].y - depthEyePoints[i * 2].y));
+				myPupilLocator.AddEye(Rect(depthEyePoints[i * 2].x, depthEyePoints[i * 2].y, depthEyePoints[i * 2 + 1].x - depthEyePoints[i * 2].x, depthEyePoints[i * 2 + 1].y - depthEyePoints[i * 2].y));
 			}
 
 			// Detect / Draw pupils in depth image
@@ -102,7 +102,8 @@ int main() try
 			myPupilLocator.DetectPupils(depth_img);
 			myPupilLocator.DrawPupils(depth_img);
 		}
-
+		*/
+		
 		// Show images
 		Mat dst_dtc_Image(depth_to_color_img.size(), CV_8UC1);
 		for (int i = 0; i < dst_dtc_Image.rows; ++i) {
