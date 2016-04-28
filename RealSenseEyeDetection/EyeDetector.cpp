@@ -1,6 +1,5 @@
 #include "EyeDetector.h"
 
-
 EyeDetector::EyeDetector()
 {
 	if (!cascade.load(casdace_face_xml_location) || !nestedCascade.load(casdace_eye_xml_location))
@@ -71,23 +70,17 @@ void EyeDetector::PupilDetection(Mat& inputImg){
 	vector<Rect>::const_iterator eyeItr = rawEyes.begin();
 
 	for (int i = 0; i < numFaces; ++i) {
-		cout << "face loc : " << (*faceItr).x << '\t' << (*faceItr).y << endl;
 		for (int j = 0; j < 2; ++j) {
-			cout << "eye loc : " << (*eyeItr).x << '\t' << (*eyeItr).y << endl;
-
 			Rect eyeROI = Rect((*faceItr).x + (*eyeItr).x, (*faceItr).y + (*eyeItr).y, (*eyeItr).width, (*eyeItr).height);
 			Point pupil = findEyeCenter(inputImg, eyeROI);
 			rawPupils.push_back(pupil);
 			++eyeItr;
-
-			cout << "pupil loc : " << pupil.x << '\t' << pupil.y << endl;
 		}
 		++faceItr;
 	}
 }
 
 void EyeDetector::ImageProcessAndDetect(Mat& colorImg, Mat& depth_to_color_img, const uint16_t one_meter) {
-	double t = (double)cvGetTickCount();
 	double one_meter_d = (double)one_meter;
 
 	original_Image_size = depth_to_color_img.size();
@@ -171,10 +164,9 @@ void EyeDetector::ImageProcessAndDetect(Mat& colorImg, Mat& depth_to_color_img, 
 		rawFaces.clear();
 		rawEyes.clear();
 		rawPupils.clear();
-	}	
+	}
 
-	t = (double)cvGetTickCount() - t;
-	printf("numFaces = %d, detection time = %g ms\n", resultFaces.size(), t / ((double)cvGetTickFrequency()*1000.));
+	return;
 }
 
 void EyeDetector::ClearInfo() {
@@ -282,6 +274,11 @@ Point EyeDetector::rotateBackPoints(Point srcPoint, Mat& rbMat) {
 	return Point((int)p1, (int)p2);
 }
 
+
+const size_t EyeDetector::getFacesSize() {
+	return resultFaces.size();
+}
+
 const size_t EyeDetector::getEyesSize() {
 	return resultEyes.size();
 }
@@ -289,6 +286,15 @@ const size_t EyeDetector::getEyesSize() {
 const Rect EyeDetector::getEyeLoc(int num) {
 	assert(num <= resultEyes.size());
 	return resultEyes[num];
+}
+
+const size_t EyeDetector::getPupilsSize() {
+	return resultPupils.size();
+}
+
+const Point EyeDetector::getPupilLoc(int num) {
+	assert(num <= resultPupils.size());
+	return resultPupils[num];
 }
 
 //////////////////////// eyeLike functions ////////////////////////////

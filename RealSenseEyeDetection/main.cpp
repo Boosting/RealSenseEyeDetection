@@ -13,14 +13,15 @@
 #include <librealsense/rs.hpp>
 #include <opencv2/core.hpp>			// Mat is in here
 #include <opencv2/highgui.hpp>		// imshow is in here
-#include <cstdio>
+#include <iostream>
+#include <iomanip>
 
 #define DEPTH_PIXEL_SEARCH_RANGE (15)
 
 using namespace cv;
 using namespace std;
 
-vector<Point> FindDepthPoint(vector<Point>& srcPts, const uint16_t * depth_frame, float scale, rs::intrinsics& depth_intrin, rs::extrinsics& depth_to_color_extrin, rs::intrinsics& color_intrin);
+void ComputeConvertMatrix(Mat& dstX, Mat& dstY, const uint16_t * depth_frame, float scale, rs::intrinsics& depth_intrin, rs::extrinsics& depth_to_color_extrin, rs::intrinsics& color_intrin);
 
 int main() try
 {
@@ -30,6 +31,9 @@ int main() try
 	Mat rgb_img(Size(640, 480), CV_8UC3);
 	Mat depth_to_color_img(Size(640, 480), CV_16UC1);
 	Mat depth_img(Size(640, 480), CV_16UC1);
+
+	vector<rs::float3> pupilLocations;
+
 	cvNamedWindow("Color Image", WINDOW_AUTOSIZE);
 	cvNamedWindow("DTC Image", WINDOW_AUTOSIZE);
 	cvNamedWindow("Depth Image", WINDOW_AUTOSIZE);
@@ -52,6 +56,13 @@ int main() try
 
 	while (true)
 	{
+		double t = (double)cvGetTickCount();
+
+		// A convert matrix saving coordinates from color to depth.
+		// i.e. A pixel in color[200,300] matches depth[250,350], then convert_img.col(200).row(300) = (250, 350) in channel (1, 2).
+		Mat convert_imgX = Mat::zeros(Size(640, 480), CV_16UC1);
+		Mat convert_imgY = Mat::zeros(Size(640, 480), CV_16UC1);
+
 		// This call waits until a new coherent set of frames is available on a device
 		// Calls to get_frame_data(...) and get_frame_timestamp(...) on a device will return stable values until wait_for_frames(...) is called
 		dev->wait_for_frames();
@@ -79,30 +90,45 @@ int main() try
 		myEyeDetector.DrawDetectedInfo(depth_to_color_img);
 
 		// Convert eye position from color image to depth image,
-		size_t numEyes = myEyeDetector.getEyesSize();
+		size_t numPupils = myEyeDetector.getPupilsSize();
 		
-		/*
-		if (numEyes != 0) {
-			vector<Point> colorEyePoints;
+		if (numPupils != 0) {
+			ComputeConvertMatrix(convert_imgX, convert_imgY, depth_frame, scale, depth_intrin, depth_to_color_extrin, color_intrin);
 
-			for (int i = 0; i < numEyes; ++i) {
-				Rect curEye = myEyeDetector.getEyeLoc(i);
-				colorEyePoints.push_back(Point(curEye.x, curEye.y));
-				colorEyePoints.push_back(Point(curEye.x + curEye.width, curEye.y + curEye.height));
+			for (int i = 0; i < numPupils; ++i) {
+				Point curPupil = myEyeDetector.getPupilLoc(i);
+				myPupilLocator.AddPupil(curPupil);
 			}
 
-			vector<Point> depthEyePoints = FindDepthPoint(colorEyePoints, depth_frame, scale, depth_intrin, depth_to_color_extrin, color_intrin);
-
-			for (int i = 0; i < numEyes; ++i) {
-				myPupilLocator.AddEye(Rect(depthEyePoints[i * 2].x, depthEyePoints[i * 2].y, depthEyePoints[i * 2 + 1].x - depthEyePoints[i * 2].x, depthEyePoints[i * 2 + 1].y - depthEyePoints[i * 2].y));
+			if (!myPupilLocator.FindPupilDepthPoints(convert_imgX, convert_imgY)) {
+				cout << "Couldn't locate pupil in depth image!" << endl;
 			}
-
-			// Detect / Draw pupils in depth image
-			myPupilLocator.DrawEyes(depth_img);
-			myPupilLocator.DetectPupils(depth_img);
+			
 			myPupilLocator.DrawPupils(depth_img);
+
+			size_t numDepthPupils = myPupilLocator.getPupilDepthSize();
+
+			for (int i = 0; i < numDepthPupils; ++i) {
+				Point pointD1 = myPupilLocator.getPupilReferenceLoc(i * 2);
+				uint16_t depth_value = depth_frame[pointD1.y * depth_intrin.width + pointD1.x];
+				float depth_in_meters = depth_value * scale;
+				rs::float2 depth_pixel = { (float)pointD1.x, (float)pointD1.y };
+				rs::float3 depth_point1 = depth_intrin.deproject(depth_pixel, depth_in_meters);
+
+				Point pointD2 = myPupilLocator.getPupilReferenceLoc(i * 2 + 1);
+				depth_value = depth_frame[pointD2.y * depth_intrin.width + pointD2.x];
+				depth_in_meters = depth_value * scale;
+				depth_pixel = { (float)pointD2.x, (float)pointD2.y };
+				rs::float3 depth_point2 = depth_intrin.deproject(depth_pixel, depth_in_meters);
+
+				rs::float3 depth_point;
+				depth_point.x = (depth_point1.x + depth_point2.x) / 2.;
+				depth_point.y = (depth_point1.y + depth_point2.y) / 2.;
+				depth_point.z = (depth_point1.z + depth_point2.z) / 2.;
+
+				pupilLocations.push_back(depth_point);
+			}
 		}
-		*/
 		
 		// Show images
 		Mat dst_dtc_Image(depth_to_color_img.size(), CV_8UC1);
@@ -142,14 +168,24 @@ int main() try
 		imshow("Depth Image", dst_depth_Image);
 		imshow("DTC Image", dst_dtc_Image);
 		imshow("Color Image", rgb_img);
-
 		waitKey(30);
+
+		t = (double)cvGetTickCount() - t;
+		printf("numFaces = %d, detection time = %g ms\n", myEyeDetector.getFacesSize(), t / ((double)cvGetTickFrequency()*1000.));
+
+		for (int i = 0; i < pupilLocations.size(); ++i) {
+			cout << right << setw(10) << setprecision(4) << pupilLocations[i].x;
+			cout << right << setw(10) << setprecision(4) << pupilLocations[i].y;
+			cout << right << setw(10) << setprecision(4) << pupilLocations[i].z;
+			cout << endl;
+		}
 
 		dst_dtc_Image.release();
 		dst_depth_Image.release();
 
 		myPupilLocator.ClearInfo();
 		myEyeDetector.ClearInfo();
+		pupilLocations.clear();
 	}
 
 	return EXIT_SUCCESS;
@@ -162,12 +198,7 @@ catch (const rs::error & e)
 	return EXIT_FAILURE;
 }
 
-
-vector<Point> FindDepthPoint(vector<Point>& srcPts, const uint16_t * depth_frame, float scale, rs::intrinsics& depth_intrin, rs::extrinsics& depth_to_color_extrin, rs::intrinsics& color_intrin) {
-	size_t size = srcPts.size();
-	vector<int> distList(size, INT_MAX);
-	vector<Point> resultVec(size, Point(0, 0));
-
+void ComputeConvertMatrix(Mat& dstX, Mat& dstY, const uint16_t * depth_frame, float scale, rs::intrinsics& depth_intrin, rs::extrinsics& depth_to_color_extrin, rs::intrinsics& color_intrin) {
 	for (int dy = 0; dy<depth_intrin.height; ++dy)
 	{
 		for (int dx = 0; dx<depth_intrin.width; ++dx)
@@ -187,16 +218,9 @@ vector<Point> FindDepthPoint(vector<Point>& srcPts, const uint16_t * depth_frame
 			// Use the color from the nearest color pixel, or pure white if this point falls outside the color image
 			const int cx = (int)round(color_pixel.x), cy = (int)round(color_pixel.y);
 			if (cx < 0 || cy < 0 || cx >= color_intrin.width || cy >= color_intrin.height) continue;
-			
-			for (int i = 0; i < size; ++i) {
-				int dist = (int)(norm(srcPts[i] - Point(cx, cy)) * 10.);
-				if (dist < distList[i]) {
-					distList[i] = dist;
-					resultVec[i] = Point((int)round(dx), (int)round(dy));
-				}
-			}
+
+			dstX.at<uint16_t>(cy, cx) = (uint16_t)dx;
+			dstY.at<uint16_t>(cy, cx) = (uint16_t)dy;
 		}
 	}
-
-	return resultVec;
 }

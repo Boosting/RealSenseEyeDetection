@@ -82,7 +82,11 @@ public:
 	void DrawDetectedInfo(Mat& colorImg);
 	void ClearInfo();
 
+	const size_t getFacesSize();
 	const size_t getEyesSize();
 	const Rect getEyeLoc(int num);
+	const size_t getPupilsSize();
+	const Point getPupilLoc(int num);
+
 };
 
