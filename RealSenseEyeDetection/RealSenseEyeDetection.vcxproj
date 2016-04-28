@@ -127,7 +127,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="EyeDetector.h" />
-    <ClInclude Include="Parameters.h" />
     <ClInclude Include="PupilLocator.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
