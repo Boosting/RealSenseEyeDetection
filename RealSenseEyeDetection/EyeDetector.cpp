@@ -12,13 +12,13 @@ EyeDetector::~EyeDetector()
 {
 }
 
-void EyeDetector::CascadeDetection(Mat& inputImg) {
+void EyeDetector::CascadeDetection(cv::Mat& inputImg) {
 	int i = 0;
-	vector<Rect> faces;
+	vector<cv::Rect> faces;
 
-	Mat smallImg(cvRound(inputImg.rows / scale), cvRound(inputImg.cols / scale), CV_8UC1);
+	cv::Mat smallImg(cvRound(inputImg.rows / scale), cvRound(inputImg.cols / scale), CV_8UC1);
 
-	resize(inputImg, smallImg, smallImg.size(), 0, 0, INTER_LINEAR);
+	resize(inputImg, smallImg, smallImg.size(), 0, 0, cv::INTER_LINEAR);
 	equalizeHist(smallImg, smallImg);
 	
 	cascade.detectMultiScale(inputImg, faces,
@@ -26,14 +26,14 @@ void EyeDetector::CascadeDetection(Mat& inputImg) {
 		//|CASCADE_DO_CANNY_PRUNING
 		//|CASCADE_FIND_BIGGEST_OBJECT
 		//|CASCADE_DO_ROUGH_SEARCH
-		| CASCADE_SCALE_IMAGE
+		| cv::CASCADE_SCALE_IMAGE
 		,
-		Size(50, 50));
+		cv::Size(50, 50));
 	
-	for (vector<Rect>::const_iterator r = faces.begin(); r != faces.end(); r++, i++)
+	for (vector<cv::Rect>::const_iterator r = faces.begin(); r != faces.end(); r++, i++)
 	{
-		Mat smallImgROI;
-		vector<Rect> nestedObjects;
+		cv::Mat smallImgROI;
+		vector<cv::Rect> nestedObjects;
 
 		if (nestedCascade.empty())
 			continue;
@@ -44,13 +44,13 @@ void EyeDetector::CascadeDetection(Mat& inputImg) {
 			//|CASCADE_FIND_BIGGEST_OBJECT
 			//|CASCADE_DO_ROUGH_SEARCH
 			//|CASCADE_DO_CANNY_PRUNING
-			| CASCADE_SCALE_IMAGE
+			| cv::CASCADE_SCALE_IMAGE
 			,
-			Size(15, 15));
+			cv::Size(15, 15));
 
 		if (nestedObjects.size() == 2) {
 			rawFaces.push_back(*r);
-			for (vector<Rect>::const_iterator nr = nestedObjects.begin(); nr != nestedObjects.end(); nr++)
+			for (vector<cv::Rect>::const_iterator nr = nestedObjects.begin(); nr != nestedObjects.end(); nr++)
 			{
 				rawEyes.push_back(*nr);
 			}
@@ -60,19 +60,19 @@ void EyeDetector::CascadeDetection(Mat& inputImg) {
 	return;
 }
 
-void EyeDetector::PupilDetection(Mat& inputImg){
+void EyeDetector::PupilDetection(cv::Mat& inputImg){
 	if (rawEyes.empty()) return;
 
 	size_t numFaces = rawFaces.size();
 	size_t numEyes = rawEyes.size();
 
-	vector<Rect>::const_iterator faceItr = rawFaces.begin();
-	vector<Rect>::const_iterator eyeItr = rawEyes.begin();
+	vector<cv::Rect>::const_iterator faceItr = rawFaces.begin();
+	vector<cv::Rect>::const_iterator eyeItr = rawEyes.begin();
 
 	for (int i = 0; i < numFaces; ++i) {
 		for (int j = 0; j < 2; ++j) {
-			Rect eyeROI = Rect((*faceItr).x + (*eyeItr).x, (*faceItr).y + (*eyeItr).y, (*eyeItr).width, (*eyeItr).height);
-			Point pupil = findEyeCenter(inputImg, eyeROI);
+			cv::Rect eyeROI = cv::Rect((*faceItr).x + (*eyeItr).x, (*faceItr).y + (*eyeItr).y, (*eyeItr).width, (*eyeItr).height);
+			cv::Point pupil = findEyeCenter(inputImg, eyeROI);
 			rawPupils.push_back(pupil);
 			++eyeItr;
 		}
@@ -80,12 +80,12 @@ void EyeDetector::PupilDetection(Mat& inputImg){
 	}
 }
 
-void EyeDetector::ImageProcessAndDetect(Mat& colorImg, Mat& depth_to_color_img, const uint16_t one_meter) {
+void EyeDetector::ImageProcessAndDetect(cv::Mat& colorImg, cv::Mat& depth_to_color_img, const uint16_t one_meter) {
 	double one_meter_d = (double)one_meter;
 
 	original_Image_size = depth_to_color_img.size();
 
-	// Depth images need to be smoothed to cancel noise, which may dramatically expand ROI
+	// Depth images need to be smoothed to cancel noise, which may dracv::Matically expand ROI
 	medianBlur(depth_to_color_img, depth_to_color_img, 5);
 
 	// Resize image ROI, objects only in 50cm~300cm are detected
@@ -107,18 +107,18 @@ void EyeDetector::ImageProcessAndDetect(Mat& colorImg, Mat& depth_to_color_img, 
 
 	// Show refined ROI, use this ROI to detect faces
 	rectangle(colorImg, roi_lt_point, roi_rb_point, CV_RGB(255, 0, 0), 1, 8, 0);
-	roi_Image = Mat(gray_Image, Rect(roi_lt_point.x, roi_lt_point.y, roi_rb_point.x - roi_lt_point.x + 1, roi_rb_point.y - roi_lt_point.y + 1));
-	rotated_Image = Mat(roi_Image.size(), CV_8UC1);
+	roi_Image = cv::Mat(gray_Image, cv::Rect(roi_lt_point.x, roi_lt_point.y, roi_rb_point.x - roi_lt_point.x + 1, roi_rb_point.y - roi_lt_point.y + 1));
+	rotated_Image = cv::Mat(roi_Image.size(), CV_8UC1);
 
 	for (int i = 0; i < 3 ; ++i) {
 		// Rotate image in different directions, once get the eyes' coordinates, rotate the positions back to original image
 		double rotate = rorates[i];
-		Point2d pt(roi_Image.cols / 2., roi_Image.rows / 2.);
-		Mat rMat = getRotationMatrix2D(pt, rotate, 1.0);
-		Mat rbMat = getRotationMatrix2D(pt, -rotate, 1.0);
-		warpAffine(roi_Image, rotated_Image, rMat, Size(roi_Image.cols, roi_Image.rows));
+		cv::Point2d pt(roi_Image.cols / 2., roi_Image.rows / 2.);
+		cv::Mat rMat = getRotationMatrix2D(pt, rotate, 1.0);
+		cv::Mat rbMat = getRotationMatrix2D(pt, -rotate, 1.0);
+		warpAffine(roi_Image, rotated_Image, rMat, cv::Size(roi_Image.cols, roi_Image.rows));
 
-		// Detect face and eyes, save information
+		// Detect face and eyes, save inforcv::Mation
 		CascadeDetection(rotated_Image);
 		PupilDetection(rotated_Image);
 
@@ -131,12 +131,12 @@ void EyeDetector::ImageProcessAndDetect(Mat& colorImg, Mat& depth_to_color_img, 
 		// The following function is to get the source(ROI) coordinate of faces and eyes.
 		// To get the global coordinates, simply add roi_lt_point.x and roi_lt_point.y to the points.
 		rotateBackRawInfo(rbMat);
-		vector<Rect>::const_iterator faceItr = rawFaces.begin();
-		vector<Rect>::const_iterator eyeItr = rawEyes.begin();
-		vector<Point>::const_iterator pupilItr = rawPupils.begin();
+		vector<cv::Rect>::const_iterator faceItr = rawFaces.begin();
+		vector<cv::Rect>::const_iterator eyeItr = rawEyes.begin();
+		vector<cv::Point>::const_iterator pupilItr = rawPupils.begin();
 
 		for (int j = 0; j < numFaces; ++j) {
-			Rect tmpFace = Rect((*faceItr).x + roi_lt_point.x, (*faceItr).y + roi_lt_point.y, (*faceItr).width, (*faceItr).height);
+			cv::Rect tmpFace = cv::Rect((*faceItr).x + roi_lt_point.x, (*faceItr).y + roi_lt_point.y, (*faceItr).width, (*faceItr).height);
 			if (IsFaceOverlap(tmpFace)) {
 				++faceItr;
 				for (int k = 0; k < 2; ++k) {
@@ -149,15 +149,15 @@ void EyeDetector::ImageProcessAndDetect(Mat& colorImg, Mat& depth_to_color_img, 
 			resultFaces.push_back(tmpFace);
 			++faceItr;
 			for (int k = 0; k < 2; ++k) {
-				resultEyes.push_back(Rect((*eyeItr).x + roi_lt_point.x, (*eyeItr).y + roi_lt_point.y, (*eyeItr).width, (*eyeItr).height));
+				resultEyes.push_back(cv::Rect((*eyeItr).x + roi_lt_point.x, (*eyeItr).y + roi_lt_point.y, (*eyeItr).width, (*eyeItr).height));
 				++eyeItr;
-				resultPupils.push_back(Point((*pupilItr).x + roi_lt_point.x, (*pupilItr).y + roi_lt_point.y));
+				resultPupils.push_back(cv::Point((*pupilItr).x + roi_lt_point.x, (*pupilItr).y + roi_lt_point.y));
 				++pupilItr;
 			}
 
 			// Fill detected faces with black - to avoid the waste time of detecting the same face
-			// Mat blackMask = Mat(tmpFace.width, tmpFace.height, CV_8UC1, 0.0);
-			// Mat aux = roi_Image.colRange(tmpFace.x, tmpFace.x + tmpFace.width).rowRange(tmpFace.y, tmpFace.y + tmpFace.height);
+			// cv::Mat blackMask = cv::Mat(tmpFace.width, tmpFace.height, CV_8UC1, 0.0);
+			// cv::Mat aux = roi_Image.colRange(tmpFace.x, tmpFace.x + tmpFace.width).rowRange(tmpFace.y, tmpFace.y + tmpFace.height);
 			// blackMask.copyTo(aux);
 		}
 
@@ -173,21 +173,21 @@ void EyeDetector::ClearInfo() {
 	resultFaces.clear();
 	resultEyes.clear();
 	resultPupils.clear();
-	roi_lt_point = Point(INT_MAX, INT_MAX);
-	roi_rb_point = Point(0, 0);
+	roi_lt_point = cv::Point(INT_MAX, INT_MAX);
+	roi_rb_point = cv::Point(0, 0);
 }
 
-void EyeDetector::DrawDetectedInfo(Mat& colorImg) {
+void EyeDetector::DrawDetectedInfo(cv::Mat& colorImg) {
 	size_t numFaces = resultFaces.size();
 	size_t numEyes = resultEyes.size();
 	
-	vector<Rect>::const_iterator faceItr = resultFaces.begin();
-	vector<Rect>::const_iterator eyeItr = resultEyes.begin();
-	vector<Point>::const_iterator pupilItr = resultPupils.begin();
+	vector<cv::Rect>::const_iterator faceItr = resultFaces.begin();
+	vector<cv::Rect>::const_iterator eyeItr = resultEyes.begin();
+	vector<cv::Point>::const_iterator pupilItr = resultPupils.begin();
 
 	for (int i = 0; i < numFaces; ++i) {
-		Point center;
-		Scalar color = colors[i % 8];
+		cv::Point center;
+		cv::Scalar color = colors[i % 8];
 		int radius;
 
 		center.x = cvRound((faceItr->x + faceItr->width*0.5)*scale);
@@ -211,9 +211,9 @@ void EyeDetector::DrawDetectedInfo(Mat& colorImg) {
 	}
 }
 
-bool EyeDetector::IsFaceOverlap(Rect& newFace) {
+bool EyeDetector::IsFaceOverlap(cv::Rect& newFace) {
 
-	for (vector<Rect>::const_iterator faceItr = resultFaces.begin(); faceItr != resultFaces.end(); ++faceItr)
+	for (vector<cv::Rect>::const_iterator faceItr = resultFaces.begin(); faceItr != resultFaces.end(); ++faceItr)
 	{
 		// If one rectangle is on left side of other
 		if (newFace.x > (*faceItr).x + (*faceItr).width || (*faceItr).x > newFace.x + newFace.width) continue;
@@ -224,21 +224,21 @@ bool EyeDetector::IsFaceOverlap(Rect& newFace) {
 	return false;
 }
 
-void EyeDetector::rotateBackRawInfo(Mat& rbMat) {
+void EyeDetector::rotateBackRawInfo(cv::Mat& rbMat) {
 	size_t numFaces = rawFaces.size();
-	vector<Rect>::iterator faceItr = rawFaces.begin();
-	vector<Rect>::iterator eyeItr = rawEyes.begin();
-	vector<Point>::iterator pupilItr = rawPupils.begin();
+	vector<cv::Rect>::iterator faceItr = rawFaces.begin();
+	vector<cv::Rect>::iterator eyeItr = rawEyes.begin();
+	vector<cv::Point>::iterator pupilItr = rawPupils.begin();
 
 	for (int i = 0; i < numFaces; ++i) {
-		Point faceLT((*faceItr).x, (*faceItr).y);
-		Point faceRB((*faceItr).x + (*faceItr).width, (*faceItr).y + (*faceItr).height);
+		cv::Point faceLT((*faceItr).x, (*faceItr).y);
+		cv::Point faceRB((*faceItr).x + (*faceItr).width, (*faceItr).y + (*faceItr).height);
 
 		for (int j = 0; j < 2; ++j) {
-			Point eyeLT(faceLT.x + (*eyeItr).x, faceLT.y + (*eyeItr).y);
-			Point eyeRB(eyeLT.x + (*eyeItr).width, eyeLT.y + (*eyeItr).height);
+			cv::Point eyeLT(faceLT.x + (*eyeItr).x, faceLT.y + (*eyeItr).y);
+			cv::Point eyeRB(eyeLT.x + (*eyeItr).width, eyeLT.y + (*eyeItr).height);
 
-			Point pupil(eyeLT.x + (*pupilItr).x, eyeLT.y + (*pupilItr).y);
+			cv::Point pupil(eyeLT.x + (*pupilItr).x, eyeLT.y + (*pupilItr).y);
 			pupil = rotateBackPoints(pupil, rbMat);
 			(*pupilItr).x = pupil.x;
 			(*pupilItr).y = pupil.y;
@@ -266,12 +266,12 @@ void EyeDetector::rotateBackRawInfo(Mat& rbMat) {
 	return;
 }
 
-Point EyeDetector::rotateBackPoints(Point srcPoint, Mat& rbMat) {
+cv::Point EyeDetector::rotateBackPoints(cv::Point srcPoint, cv::Mat& rbMat) {
 	double np1 = srcPoint.x, np2 = srcPoint.y;
 	double p1, p2;
 	p1 = np1 * rbMat.at<double>(0, 0) + np2 * rbMat.at<double>(0, 1) + rbMat.at<double>(0, 2);
 	p2 = np1 * rbMat.at<double>(1, 0) + np2 * rbMat.at<double>(1, 1) + rbMat.at<double>(1, 2);
-	return Point((int)p1, (int)p2);
+	return cv::Point((int)p1, (int)p2);
 }
 
 
@@ -283,7 +283,7 @@ const size_t EyeDetector::getEyesSize() {
 	return resultEyes.size();
 }
 
-const Rect EyeDetector::getEyeLoc(int num) {
+const cv::Rect EyeDetector::getEyeLoc(int num) {
 	assert(num <= resultEyes.size());
 	return resultEyes[num];
 }
@@ -292,7 +292,7 @@ const size_t EyeDetector::getPupilsSize() {
 	return resultPupils.size();
 }
 
-const Point EyeDetector::getPupilLoc(int num) {
+const cv::Point EyeDetector::getPupilLoc(int num) {
 	assert(num <= resultPupils.size());
 	return resultPupils[num];
 }
@@ -300,9 +300,9 @@ const Point EyeDetector::getPupilLoc(int num) {
 //////////////////////// eyeLike functions ////////////////////////////
 
 // It returns eye center location offset, based on location of eyes.
-Point EyeDetector::findEyeCenter(Mat& face, Rect& eye) {
-	Mat eyeROIUnscaled = face(eye);
-	Mat eyeROI;
+cv::Point EyeDetector::findEyeCenter(cv::Mat& face, cv::Rect& eye) {
+	cv::Mat eyeROIUnscaled = face(eye);
+	cv::Mat eyeROI;
 
 	scaleToFastSize(eyeROIUnscaled, eyeROI);
 
@@ -375,33 +375,33 @@ Point EyeDetector::findEyeCenter(Mat& face, Rect& eye) {
 	return result;
 }
 
-void EyeDetector::scaleToFastSize(const Mat &src, Mat &dst) {
-	resize(src, dst, Size(kFastEyeWidth, (((float)kFastEyeWidth) / src.cols) * src.rows));
+void EyeDetector::scaleToFastSize(const cv::Mat &src, cv::Mat &dst) {
+	resize(src, dst, cv::Size(kFastEyeWidth, (((float)kFastEyeWidth) / src.cols) * src.rows));
 }
 
-Mat EyeDetector::computeMatXGradient(const Mat &mat) {
-	Mat out(mat.rows, mat.cols, CV_64F);
+cv::Mat EyeDetector::computeMatXGradient(const cv::Mat &Mat) {
+	cv::Mat out(Mat.rows, Mat.cols, CV_64F);
 
-	for (int y = 0; y < mat.rows; ++y) {
-		const uchar *Mr = mat.ptr<uchar>(y);
+	for (int y = 0; y < Mat.rows; ++y) {
+		const uchar *Mr = Mat.ptr<uchar>(y);
 		double *Or = out.ptr<double>(y);
 
 		Or[0] = Mr[1] - Mr[0];
-		for (int x = 1; x < mat.cols - 1; ++x) {
+		for (int x = 1; x < Mat.cols - 1; ++x) {
 			Or[x] = (Mr[x + 1] - Mr[x - 1]) / 2.0;
 		}
-		Or[mat.cols - 1] = Mr[mat.cols - 1] - Mr[mat.cols - 2];
+		Or[Mat.cols - 1] = Mr[Mat.cols - 1] - Mr[Mat.cols - 2];
 	}
 
 	return out;
 }
 
-cv::Mat EyeDetector::matrixMagnitude(const cv::Mat &matX, const cv::Mat &matY) {
-	cv::Mat mags(matX.rows, matX.cols, CV_64F);
-	for (int y = 0; y < matX.rows; ++y) {
-		const double *Xr = matX.ptr<double>(y), *Yr = matY.ptr<double>(y);
+cv::Mat EyeDetector::matrixMagnitude(const cv::Mat &MatX, const cv::Mat &MatY) {
+	cv::Mat mags(MatX.rows, MatX.cols, CV_64F);
+	for (int y = 0; y < MatX.rows; ++y) {
+		const double *Xr = MatX.ptr<double>(y), *Yr = MatY.ptr<double>(y);
 		double *Mr = mags.ptr<double>(y);
-		for (int x = 0; x < matX.cols; ++x) {
+		for (int x = 0; x < MatX.cols; ++x) {
 			double gX = Xr[x], gY = Yr[x];
 			double magnitude = sqrt((gX * gX) + (gY * gY));
 			Mr[x] = magnitude;
@@ -410,10 +410,10 @@ cv::Mat EyeDetector::matrixMagnitude(const cv::Mat &matX, const cv::Mat &matY) {
 	return mags;
 }
 
-double EyeDetector::computeDynamicThreshold(const cv::Mat &mat, double stdDevFactor) {
+double EyeDetector::computeDynamicThreshold(const cv::Mat &Mat, double stdDevFactor) {
 	cv::Scalar stdMagnGrad, meanMagnGrad;
-	cv::meanStdDev(mat, meanMagnGrad, stdMagnGrad);
-	double stdDev = stdMagnGrad[0] / sqrt(mat.rows*mat.cols);
+	cv::meanStdDev(Mat, meanMagnGrad, stdMagnGrad);
+	double stdDev = stdMagnGrad[0] / sqrt(Mat.rows*Mat.cols);
 	return stdDevFactor * stdDev + meanMagnGrad[0];
 }
 

@@ -1,4 +1,4 @@
-// License: Apache 2.0. See LICENSE file in root directory.
+﻿// License: Apache 2.0. See LICENSE file in root directory.
 // Copyright(c) 2015 Intel Corporation. All Rights Reserved.
 
 /////////////////////////////////////////////////////
@@ -6,37 +6,86 @@
 /////////////////////////////////////////////////////
 
 #pragma once
+#define MY_DEBUG_SOCKET
+#define _WINSOCK_DEPRECATED_NO_WARNINGS
+#define _CRT_SECURE_NO_WARNINGS
+
 #include "EyeDetector.h"
 #include "PupilLocator.h"
 
-// Include librealsense and OpenCV header files
-#include <librealsense/rs.hpp>
-#include <opencv2/core.hpp>			// Mat is in here
-#include <opencv2/highgui.hpp>		// imshow is in here
 #include <iostream>
 #include <iomanip>
+#include <winsock2.h>
 
-#define DEPTH_PIXEL_SEARCH_RANGE (15)
+// Include librealsense and OpenCV header files
+#include <librealsense/rs.hpp>
+#include <opencv2/core.hpp>			// cv::Mat is in here
+#include <opencv2/highgui.hpp>		// imshow is in here
 
-using namespace cv;
+#pragma comment(lib,"ws2_32.lib")
+#define PORT 4000
+#define IP_ADDRESS "169.237.118.42"
+
 using namespace std;
 
-void ComputeConvertMatrix(Mat& dstX, Mat& dstY, const uint16_t * depth_frame, float scale, rs::intrinsics& depth_intrin, rs::extrinsics& depth_to_color_extrin, rs::intrinsics& color_intrin);
+// "ConvertMatrix": lookup table
+void ComputeConvertMatrix(cv::Mat& dstX, cv::Mat& dstY, const uint16_t * depth_frame, float scale, rs::intrinsics& depth_intrin, rs::extrinsics& depth_to_color_extrin, rs::intrinsics& color_intrin);
 
 int main() try
 {
+#ifdef MY_DEBUG_SOCKET
+/////////////////////////////////////////////////////////////
+////////////  Windows socket things /////////////////////////
+/////////////////////////////////////////////////////////////
+	WSADATA Ws;
+	SOCKET ClientSocket;
+	struct sockaddr_in ServerAddr;
+	int Ret = 0;
+
+	//Init Windows Socket
+	if (WSAStartup(MAKEWORD(2, 2), &Ws) != 0)
+	{
+		cout << "Init Windows Socket Failed::" << GetLastError() << endl;
+		return -1;
+	}
+	//Create Socket
+	ClientSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	if (ClientSocket == INVALID_SOCKET)
+	{
+		cout << "Create Socket Failed::" << GetLastError() << endl;
+		return -1;
+	}
+
+	ServerAddr.sin_family = AF_INET;
+	ServerAddr.sin_addr.s_addr = inet_addr(IP_ADDRESS);
+	ServerAddr.sin_port = htons(PORT);
+	memset(ServerAddr.sin_zero, 0x00, 8);
+
+	Ret = connect(ClientSocket, (struct sockaddr*)&ServerAddr, sizeof(ServerAddr));
+	if (Ret == SOCKET_ERROR)
+	{
+		cout << "Connect Error::" << GetLastError() << endl;
+		return -1;
+	}
+	else
+	{
+		cout << "Connected!" << endl;
+	}
+/////////////////////////////////////////////////////////////
+#endif // MY_DEBUG_SOCKET
+
 	EyeDetector myEyeDetector;
 	PupilLocator myPupilLocator;
 
-	Mat rgb_img(Size(640, 480), CV_8UC3);
-	Mat depth_to_color_img(Size(640, 480), CV_16UC1);
-	Mat depth_img(Size(640, 480), CV_16UC1);
+	cv::Mat rgb_img(cv::Size(640, 480), CV_8UC3);
+	cv::Mat depth_to_color_img(cv::Size(640, 480), CV_16UC1);
+	cv::Mat depth_img(cv::Size(640, 480), CV_16UC1);
 
 	vector<rs::float3> pupilLocations;
 
-	cvNamedWindow("Color Image", WINDOW_AUTOSIZE);
-	cvNamedWindow("DTC Image", WINDOW_AUTOSIZE);
-	cvNamedWindow("Depth Image", WINDOW_AUTOSIZE);
+	cvNamedWindow("Color Image", cv::WINDOW_AUTOSIZE);
+	cvNamedWindow("DTC Image", cv::WINDOW_AUTOSIZE);
+	cvNamedWindow("Depth Image", cv::WINDOW_AUTOSIZE);
 
 	// Create a context object. This object owns the handles to all connected realsense devices.
 	rs::context ctx;
@@ -56,12 +105,13 @@ int main() try
 
 	while (true)
 	{
+		char SendBuffer[MAX_PATH];
 		double t = (double)cvGetTickCount();
 
-		// A convert matrix saving coordinates from color to depth.
-		// i.e. A pixel in color[200,300] matches depth[250,350], then convert_img.col(200).row(300) = (250, 350) in channel (1, 2).
-		Mat convert_imgX = Mat::zeros(Size(640, 480), CV_16UC1);
-		Mat convert_imgY = Mat::zeros(Size(640, 480), CV_16UC1);
+		// A convert cv::Matrix (lookup table) saving coordinates from color to depth.
+		// i.e. A pixel in color[200,300] cv::Matches depth[250,350], then convert_imgX[200,300] = 250, convert_imgY[200,300] = 350.
+		cv::Mat convert_imgX = cv::Mat::zeros(cv::Size(640, 480), CV_16UC1);
+		cv::Mat convert_imgY = cv::Mat::zeros(cv::Size(640, 480), CV_16UC1);
 
 		// This call waits until a new coherent set of frames is available on a device
 		// Calls to get_frame_data(...) and get_frame_timestamp(...) on a device will return stable values until wait_for_frames(...) is called
@@ -90,13 +140,14 @@ int main() try
 		myEyeDetector.DrawDetectedInfo(depth_to_color_img);
 
 		// Convert eye position from color image to depth image,
+		size_t numFaces = myEyeDetector.getFacesSize();
 		size_t numPupils = myEyeDetector.getPupilsSize();
 		
-		if (numPupils != 0) {
+		if (numPupils != 0 && numFaces * 2 == numPupils) {
 			ComputeConvertMatrix(convert_imgX, convert_imgY, depth_frame, scale, depth_intrin, depth_to_color_extrin, color_intrin);
 
 			for (int i = 0; i < numPupils; ++i) {
-				Point curPupil = myEyeDetector.getPupilLoc(i);
+				cv::Point curPupil = myEyeDetector.getPupilLoc(i);
 				myPupilLocator.AddPupil(curPupil);
 			}
 
@@ -109,13 +160,13 @@ int main() try
 			size_t numDepthPupils = myPupilLocator.getPupilDepthSize();
 
 			for (int i = 0; i < numDepthPupils; ++i) {
-				Point pointD1 = myPupilLocator.getPupilReferenceLoc(i * 2);
+				cv::Point pointD1 = myPupilLocator.getPupilReferenceLoc(i * 2);
 				uint16_t depth_value = depth_frame[pointD1.y * depth_intrin.width + pointD1.x];
 				float depth_in_meters = depth_value * scale;
 				rs::float2 depth_pixel = { (float)pointD1.x, (float)pointD1.y };
 				rs::float3 depth_point1 = depth_intrin.deproject(depth_pixel, depth_in_meters);
 
-				Point pointD2 = myPupilLocator.getPupilReferenceLoc(i * 2 + 1);
+				cv::Point pointD2 = myPupilLocator.getPupilReferenceLoc(i * 2 + 1);
 				depth_value = depth_frame[pointD2.y * depth_intrin.width + pointD2.x];
 				depth_in_meters = depth_value * scale;
 				depth_pixel = { (float)pointD2.x, (float)pointD2.y };
@@ -131,7 +182,7 @@ int main() try
 		}
 		
 		// Show images
-		Mat dst_dtc_Image(depth_to_color_img.size(), CV_8UC1);
+		cv::Mat dst_dtc_Image(depth_to_color_img.size(), CV_8UC1);
 		for (int i = 0; i < dst_dtc_Image.rows; ++i) {
 			for (int j = 0; j < dst_dtc_Image.cols; ++j) {
 				uint16_t val = depth_to_color_img.at<uint16_t>(i, j);
@@ -148,7 +199,7 @@ int main() try
 			}
 		}
 
-		Mat dst_depth_Image(depth_img.size(), CV_8UC1);
+		cv::Mat dst_depth_Image(depth_img.size(), CV_8UC1);
 		for (int i = 0; i < dst_depth_Image.rows; ++i) {
 			for (int j = 0; j < dst_depth_Image.cols; ++j) {
 				uint16_t val = depth_img.at<uint16_t>(i, j);
@@ -168,17 +219,28 @@ int main() try
 		imshow("Depth Image", dst_depth_Image);
 		imshow("DTC Image", dst_dtc_Image);
 		imshow("Color Image", rgb_img);
-		waitKey(30);
+		cv::waitKey(1);
 
 		t = (double)cvGetTickCount() - t;
 		printf("numFaces = %d, detection time = %g ms\n", myEyeDetector.getFacesSize(), t / ((double)cvGetTickFrequency()*1000.));
 
-		for (int i = 0; i < pupilLocations.size(); ++i) {
+		int pupilSize = pupilLocations.size();
+		SendBuffer[0] = (char)pupilSize;
+		for (int i = 0; i < pupilSize; ++i) {
 			cout << right << setw(10) << setprecision(4) << pupilLocations[i].x;
 			cout << right << setw(10) << setprecision(4) << pupilLocations[i].y;
 			cout << right << setw(10) << setprecision(4) << pupilLocations[i].z;
 			cout << endl;
+			memcpy(SendBuffer + 1 + i * 12, &pupilLocations[i].x, 12);
 		}
+		SendBuffer[2 + pupilSize * 12] = '\0';
+
+#ifdef MY_DEBUG_SOCKET
+		if (pupilSize != 0 && numFaces * 2 == pupilSize) {
+			Ret = send(ClientSocket, SendBuffer, (int)strlen(SendBuffer), 0);
+			if (Ret == SOCKET_ERROR) cout << "Send Info Error::" << GetLastError() << endl;
+		}
+#endif
 
 		dst_dtc_Image.release();
 		dst_depth_Image.release();
@@ -187,6 +249,12 @@ int main() try
 		myEyeDetector.ClearInfo();
 		pupilLocations.clear();
 	}
+
+#ifdef MY_DEBUG_SOCKET
+	// close sockets
+	closesocket(ClientSocket);
+	WSACleanup();
+#endif
 
 	return EXIT_SUCCESS;
 }
@@ -198,7 +266,7 @@ catch (const rs::error & e)
 	return EXIT_FAILURE;
 }
 
-void ComputeConvertMatrix(Mat& dstX, Mat& dstY, const uint16_t * depth_frame, float scale, rs::intrinsics& depth_intrin, rs::extrinsics& depth_to_color_extrin, rs::intrinsics& color_intrin) {
+void ComputeConvertMatrix(cv::Mat& dstX, cv::Mat& dstY, const uint16_t * depth_frame, float scale, rs::intrinsics& depth_intrin, rs::extrinsics& depth_to_color_extrin, rs::intrinsics& color_intrin) {
 	for (int dy = 0; dy<depth_intrin.height; ++dy)
 	{
 		for (int dx = 0; dx<depth_intrin.width; ++dx)

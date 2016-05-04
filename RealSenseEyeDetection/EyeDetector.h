@@ -1,12 +1,11 @@
 #pragma once
 #include <iostream>
-#include <opencv2/core.hpp>			// Mat is in here
+#include <opencv2/core.hpp>			// cv::Mat is in here
 #include <opencv2/imgproc.hpp>		// circle is in here
-#include <opencv2/objdetect.hpp>	// CascadeClassifier is in here
+#include <opencv2/objdetect.hpp>	// cv::CascadeClassifier is in here
 #include <opencv2/highgui.hpp>		// imshow is in here
 #include <queue>
 
-using namespace cv;
 using namespace std;
 
 class EyeDetector
@@ -22,7 +21,7 @@ private:
 	const float closest_depth_distance = 0.5;
 	const float farthest_depth_distance = 3.0;
 
-	const Scalar colors[8] = { CV_RGB(0,0,255),
+	const cv::Scalar colors[8] = { CV_RGB(0,0,255),
 		CV_RGB(0,128,255),
 		CV_RGB(0,255,255),
 		CV_RGB(0,255,0),
@@ -40,37 +39,37 @@ private:
 	const float kWeightDivisor = 1.0;
 	const double kGradientThreshold = 50.0;
 
-	CascadeClassifier cascade;
-	CascadeClassifier nestedCascade;
+	cv::CascadeClassifier cascade;
+	cv::CascadeClassifier nestedCascade;
 
-	vector<Rect> rawFaces;		// rawFaces: saving absolute locations
-	vector<Rect> rawEyes;		// rawEyes: before rotate back: saving location offset corresponding to faces
+	vector<cv::Rect> rawFaces;		// rawFaces: saving absolute locations
+	vector<cv::Rect> rawEyes;		// rawEyes: before rotate back: saving location offset corresponding to faces
 								//          after rotate back: saving absolute locations
-	vector<Point> rawPupils;	// rawPupils: before rotate back: saving location offset corresponding to eyes
+	vector<cv::Point> rawPupils;	// rawPupils: before rotate back: saving location offset corresponding to eyes
 								//            after rotate back: saving absolute locations
-	vector<Rect> resultFaces;	// Faces: saving absolute locations
-	vector<Rect> resultEyes;	// Eyes: saving absolute locations
-	vector<Point> resultPupils;	// Pupils: pupil center corresponding to eyes, absolute locations.
+	vector<cv::Rect> resultFaces;	// Faces: saving absolute locations
+	vector<cv::Rect> resultEyes;	// Eyes: saving absolute locations
+	vector<cv::Point> resultPupils;	// Pupils: pupil center corresponding to eyes, absolute locations.
 
 	CvSize original_Image_size;
-	Point roi_lt_point, roi_rb_point;
-	Mat gray_Image;
-	Mat roi_Image;
-	Mat rotated_Image;
+	cv::Point roi_lt_point, roi_rb_point;
+	cv::Mat gray_Image;
+	cv::Mat roi_Image;
+	cv::Mat rotated_Image;
 
-	bool IsFaceOverlap(Rect& newFace);
-	void CascadeDetection(Mat& inputImg);
-	void PupilDetection(Mat& inputImg);
+	bool IsFaceOverlap(cv::Rect& newFace);
+	void CascadeDetection(cv::Mat& inputImg);
+	void PupilDetection(cv::Mat& inputImg);
 
-	Point rotateBackPoints(Point srcPoint, Mat& rbMat);
-	void rotateBackRawInfo(Mat& rbMat);
+	cv::Point rotateBackPoints(cv::Point srcPoint, cv::Mat& rbMat);
+	void rotateBackRawInfo(cv::Mat& rbMat);
 
 	// eyeLike functions - proessing
-	Point findEyeCenter(Mat& face, Rect& eye);
-	void scaleToFastSize(const Mat &src, Mat &dst);
-	Mat computeMatXGradient(const Mat &mat);
-	cv::Mat matrixMagnitude(const cv::Mat &matX, const cv::Mat &matY);
-	double computeDynamicThreshold(const cv::Mat &mat, double stdDevFactor);
+	cv::Point findEyeCenter(cv::Mat& face, cv::Rect& eye);
+	void scaleToFastSize(const cv::Mat &src, cv::Mat &dst);
+	cv::Mat computeMatXGradient(const cv::Mat &Mat);
+	cv::Mat matrixMagnitude(const cv::Mat &MatX, const cv::Mat &MatY);
+	double computeDynamicThreshold(const cv::Mat &Mat, double stdDevFactor);
 	void EyeDetector::testPossibleCentersFormula(int x, int y, const cv::Mat &weight, double gx, double gy, cv::Mat &out);
 	cv::Point EyeDetector::unscalePoint(cv::Point p, cv::Rect origSize);
 
@@ -78,15 +77,15 @@ public:
 	EyeDetector();
 	~EyeDetector();
 
-	void ImageProcessAndDetect(Mat& colorImg, Mat& depth_to_color_img, const uint16_t one_meter);
-	void DrawDetectedInfo(Mat& colorImg);
+	void ImageProcessAndDetect(cv::Mat& colorImg, cv::Mat& depth_to_color_img, const uint16_t one_meter);
+	void DrawDetectedInfo(cv::Mat& colorImg);
 	void ClearInfo();
 
 	const size_t getFacesSize();
 	const size_t getEyesSize();
-	const Rect getEyeLoc(int num);
+	const cv::Rect getEyeLoc(int num);
 	const size_t getPupilsSize();
-	const Point getPupilLoc(int num);
+	const cv::Point getPupilLoc(int num);
 
 };
 
