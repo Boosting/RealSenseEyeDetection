@@ -6,7 +6,7 @@
 /////////////////////////////////////////////////////
 
 #pragma once
-#define MY_DEBUG_SOCKET
+//#define MY_WINDOWS_SOCKET
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 #define _CRT_SECURE_NO_WARNINGS
 
@@ -15,16 +15,20 @@
 
 #include <iostream>
 #include <iomanip>
-#include <winsock2.h>
 
 // Include librealsense and OpenCV header files
 #include <librealsense/rs.hpp>
 #include <opencv2/core.hpp>			// cv::Mat is in here
 #include <opencv2/highgui.hpp>		// imshow is in here
 
+#ifdef MY_WINDOWS_SOCKET
+#include <winsock2.h>
 #pragma comment(lib,"ws2_32.lib")
 #define PORT 4000
 #define IP_ADDRESS "169.237.118.42"
+#else
+#define MAX_PATH 260
+#endif
 
 using namespace std;
 
@@ -33,7 +37,7 @@ void ComputeConvertMatrix(cv::Mat& dstX, cv::Mat& dstY, const uint16_t * depth_f
 
 int main() try
 {
-#ifdef MY_DEBUG_SOCKET
+#ifdef MY_WINDOWS_SOCKET
 /////////////////////////////////////////////////////////////
 ////////////  Windows socket things /////////////////////////
 /////////////////////////////////////////////////////////////
@@ -72,7 +76,7 @@ int main() try
 		cout << "Connected!" << endl;
 	}
 /////////////////////////////////////////////////////////////
-#endif // MY_DEBUG_SOCKET
+#endif // MY_WINDOWS_SOCKET
 
 	EyeDetector myEyeDetector;
 	PupilLocator myPupilLocator;
@@ -235,7 +239,7 @@ int main() try
 		}
 		SendBuffer[2 + pupilSize * 12] = '\0';
 
-#ifdef MY_DEBUG_SOCKET
+#ifdef MY_WINDOWS_SOCKET
 		if (pupilSize != 0 && numFaces * 2 == pupilSize) {
 			Ret = send(ClientSocket, SendBuffer, (int)strlen(SendBuffer), 0);
 			if (Ret == SOCKET_ERROR) cout << "Send Info Error::" << GetLastError() << endl;
@@ -250,7 +254,7 @@ int main() try
 		pupilLocations.clear();
 	}
 
-#ifdef MY_DEBUG_SOCKET
+#ifdef MY_WINDOWS_SOCKET
 	// close sockets
 	closesocket(ClientSocket);
 	WSACleanup();
