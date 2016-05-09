@@ -32,8 +32,13 @@ void PupilLocator::DrawPupils(cv::Mat& depthImg) {
 	}
 }
 
-// return false: couldn't find any reference points for some pupils
 bool PupilLocator::FindPupilDepthPoints(cv::Mat& convert_imgX, cv::Mat& convert_imgY) {
+	// For each pupil point:
+	// If it has depth value, save it twice as reference points.
+	// If not, search for its left-right pair points with distance 1.
+	//   - If the two points all have depth value, save them as reference points.
+	//   - If not, search its top-bottom pair points with distance 1.
+	// Increase search distance until find a pair, or until distance reaches max_reference_search_pixels.
 	for (vector<cv::Point>::const_iterator pupilItr = detectedPupils.begin(); pupilItr != detectedPupils.end(); ++pupilItr) {
 		cv::Point pupil = *pupilItr;
 		int dist;

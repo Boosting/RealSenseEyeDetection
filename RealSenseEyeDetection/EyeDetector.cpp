@@ -70,6 +70,7 @@ void EyeDetector::PupilDetection(cv::Mat& inputImg){
 	vector<cv::Rect>::const_iterator eyeItr = rawEyes.begin();
 
 	for (int i = 0; i < numFaces; ++i) {
+		// For each eye of all faces, run findEyeCenter function.
 		for (int j = 0; j < 2; ++j) {
 			cv::Rect eyeROI = cv::Rect((*faceItr).x + (*eyeItr).x, (*faceItr).y + (*eyeItr).y, (*eyeItr).width, (*eyeItr).height);
 			cv::Point pupil = findEyeCenter(inputImg, eyeROI);
@@ -118,7 +119,7 @@ void EyeDetector::ImageProcessAndDetect(cv::Mat& colorImg, cv::Mat& depth_to_col
 		cv::Mat rbMat = getRotationMatrix2D(pt, -rotate, 1.0);
 		warpAffine(roi_Image, rotated_Image, rMat, cv::Size(roi_Image.cols, roi_Image.rows));
 
-		// Detect face and eyes, save inforcv::Mation
+		// Detect face, eyes and pupils, save information
 		CascadeDetection(rotated_Image);
 		PupilDetection(rotated_Image);
 
