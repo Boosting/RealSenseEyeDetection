@@ -243,7 +243,7 @@ int main() try
 			cout << endl;
 			memcpy(SendBuffer + 1 + i * 12, &pupilLocations[i].x, 12);
 		}
-		SendBuffer[2 + pupilSize * 12] = '\0';
+		SendBuffer[1 + pupilSize * 12] = '\0';
 
 #ifdef MY_WINDOWS_SOCKET
 		if (pupilSize != 0 && numFaces * 2 == pupilSize) {
